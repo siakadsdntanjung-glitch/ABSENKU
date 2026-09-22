@@ -253,6 +253,11 @@ canvas.chart{max-height:260px;}
             <label>Batas Akurasi GPS Maksimal (meter)</label>
             <input type="number" id="akurasiSekolah" value="50" required>
           </div>
+          <div class="field">
+            <label>Timeout Pengambilan Lokasi (detik)</label>
+            <input type="number" id="timeoutSekolah" value="20" min="10" max="60" required>
+          </div>
+          <div class="msg info">Timeout menentukan berapa lama HP guru menunggu sinyal GPS/lokasi sebelum menyerah. Kalau jaringan/GPS di lokasi sekolah sering lambat atau lemah, naikkan angka ini (misal 30-45 detik) supaya absen tidak keburu gagal "timeout". Kalau sinyal biasanya cepat, angka lebih kecil bikin proses absen lebih responsif.</div>
           <div class="msg info">Semakin kecil angka batas akurasi, semakin ketat sistem menolak lokasi yang tidak presisi/mencurigakan (misalnya dari GPS palsu atau sinyal lemah). 30-75 meter cukup wajar untuk HP standar.</div>
           <button type="button" class="btn btn-outline" style="margin-bottom:12px" onclick="ambilLokasiSekarang()">📍 Gunakan Lokasi Saat Ini</button>
           <button class="btn" type="submit">Simpan Titik Koordinat</button>
@@ -323,10 +328,14 @@ let chartStatus, chartProgres, chartKehadiran;
 let adminUtamaSudahAda = null; // cache hasil cek meta/adminUtamaExists
 
 /* ================= ROUTING AWAL ================= */
+function isHalamanAbsen(params){
+  return !!(params.get('s') && params.get('g') && params.get('t'));
+}
+
 window.addEventListener('load', () => {
   const params = new URLSearchParams(location.search);
-  if (params.get('absen')) {
-    initAbsenGuru(params.get('absen'));
+  if (isHalamanAbsen(params)) {
+    initAbsenGuru(params.get('s'), params.get('g'), params.get('t'));
     return;
   }
   document.getElementById('screen-auth').classList.remove('hidden');
@@ -334,7 +343,7 @@ window.addEventListener('load', () => {
 
 auth.onAuthStateChanged(async (user) => {
   const params = new URLSearchParams(location.search);
-  if (params.get('absen')) return; // halaman absen guru pakai anonymous auth, jangan ikut alur ini
+  if (isHalamanAbsen(params)) return; // halaman absen guru pakai anonymous auth, jangan ikut alur ini
   currentUser = user;
   if (!user) { showScreen('auth'); return; }
   const snap = await db.ref('admins/' + user.uid).once('value');
@@ -656,7 +665,10 @@ function tampilkanQR(gid){
   const box = document.getElementById('qrbox-'+gid);
   if (box.childNodes.length) return;
   const g = guruCache[gid];
-  const url = location.origin + location.pathname + '?absen=' + currentUser.uid + '_' + gid + '_' + g.token;
+  const url = location.origin + location.pathname
+    + '?s=' + encodeURIComponent(currentUser.uid)
+    + '&g=' + encodeURIComponent(gid)
+    + '&t=' + encodeURIComponent(g.token);
   new QRCode(box, { text:url, width:160, height:160 });
   const info = document.createElement('div');
   info.style.marginTop = '8px'; info.style.fontSize='12px'; info.style.color='#64748b';
@@ -712,6 +724,7 @@ async function loadLokasi(){
     document.getElementById('lngSekolah').value = l.lng;
     document.getElementById('radiusSekolah').value = l.radius;
     document.getElementById('akurasiSekolah').value = l.akurasiMax ?? 50;
+    document.getElementById('timeoutSekolah').value = l.timeoutDetik ?? 20;
   }
 }
 function ambilLokasiSekarang(){
@@ -727,7 +740,8 @@ async function simpanLokasi(e){
   const lng = Number(document.getElementById('lngSekolah').value);
   const radius = Number(document.getElementById('radiusSekolah').value);
   const akurasiMax = Number(document.getElementById('akurasiSekolah').value);
-  await db.ref('schools/'+currentUser.uid+'/settings/lokasi').set({ lat, lng, radius, akurasiMax });
+  const timeoutDetik = Number(document.getElementById('timeoutSekolah').value);
+  await db.ref('schools/'+currentUser.uid+'/settings/lokasi').set({ lat, lng, radius, akurasiMax, timeoutDetik });
   alert('Titik koordinat tersimpan.');
   return false;
 }
@@ -789,9 +803,8 @@ function downloadRekapCSV(){
 
 /* ================= HALAMAN ABSEN GURU (via QR) ================= */
 let absenCtx = {};
-function initAbsenGuru(param){
+function initAbsenGuru(schoolUid, guruId, token){
   showScreen('absenguru');
-  const [schoolUid, guruId, token] = param.split('_');
   absenCtx = { schoolUid, guruId, token };
   setInterval(()=>{ document.getElementById('jamLive').innerText = new Date().toLocaleTimeString('id-ID'); }, 1000);
 
@@ -858,17 +871,54 @@ async function ambilFotoDanAbsen(){
   prosesAbsen(selfieDataUrl);
 }
 
-function prosesAbsen(selfieDataUrl){
+async function prosesAbsen(selfieDataUrl){
   if (!navigator.geolocation){ showMsg('absenGuruMsg','Geolocation tidak didukung.','error'); return; }
+  if (!window.isSecureContext){
+    showMsg('absenGuruMsg','Halaman ini harus diakses lewat HTTPS agar lokasi bisa diambil.','error');
+    tampilkanTombolUlangi();
+    return;
+  }
   showMsg('absenGuruMsg', 'Memvalidasi lokasi...', 'info');
-  navigator.geolocation.getCurrentPosition(async pos=>{
+
+  const { schoolUid } = absenCtx;
+  const [locSnap, jamSnap] = await Promise.all([
+    db.ref('schools/'+schoolUid+'/settings/lokasi').once('value'),
+    db.ref('schools/'+schoolUid+'/settings/jam').once('value')
+  ]);
+  const lokasi = locSnap.val(); const jam = jamSnap.val();
+  if (!lokasi){ showMsg('absenGuruMsg','Sekolah belum mengatur titik koordinat.','error'); tampilkanTombolUlangi(); return; }
+
+  // Timeout diatur oleh admin sekolah (menyesuaikan kondisi jaringan/GPS di lokasi), default 20 detik
+  const timeoutMs = Math.max(10, Number(lokasi.timeoutDetik) || 20) * 1000;
+
+  function pesanError(err){
+    if (err.code === err.TIMEOUT) return 'Waktu pencarian lokasi habis. Pastikan GPS/Lokasi di perangkat aktif, lalu coba lagi di area terbuka.';
+    if (err.code === err.PERMISSION_DENIED) return 'Izin lokasi ditolak. Aktifkan izin lokasi untuk halaman ini di pengaturan browser.';
+    if (err.code === err.POSITION_UNAVAILABLE) return 'Lokasi tidak tersedia saat ini. Coba lagi.';
+    return err.message;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => lanjutkanAbsen(pos, selfieDataUrl, lokasi, jam),
+    errPertama => {
+      // Percobaan pertama (akurasi tinggi) gagal/timeout, coba ulang dengan mode lebih longgar
+      showMsg('absenGuruMsg', 'Mencoba ulang mengambil lokasi...', 'info');
+      navigator.geolocation.getCurrentPosition(
+        pos => lanjutkanAbsen(pos, selfieDataUrl, lokasi, jam),
+        errKedua => {
+          showMsg('absenGuruMsg', 'Gagal mengambil lokasi: '+pesanError(errKedua), 'error');
+          tampilkanTombolUlangi();
+        },
+        { enableHighAccuracy:false, timeout:timeoutMs, maximumAge:30000 }
+      );
+    },
+    { enableHighAccuracy:true, timeout:timeoutMs, maximumAge:0 }
+  );
+}
+
+async function lanjutkanAbsen(pos, selfieDataUrl, lokasi, jam){
+  {
     const { schoolUid, guruId } = absenCtx;
-    const [locSnap, jamSnap] = await Promise.all([
-      db.ref('schools/'+schoolUid+'/settings/lokasi').once('value'),
-      db.ref('schools/'+schoolUid+'/settings/jam').once('value')
-    ]);
-    const lokasi = locSnap.val(); const jam = jamSnap.val();
-    if (!lokasi){ showMsg('absenGuruMsg','Sekolah belum mengatur titik koordinat.','error'); return; }
 
     const akurasi = pos.coords.accuracy;
     const akurasiMax = lokasi.akurasiMax || 50;
@@ -912,10 +962,7 @@ function prosesAbsen(selfieDataUrl){
     } else {
       showMsg('absenGuruMsg', 'Anda sudah melakukan absen masuk dan pulang hari ini.', 'info');
     }
-  }, err=>{
-    showMsg('absenGuruMsg', 'Gagal mengambil lokasi: '+err.message, 'error');
-    tampilkanTombolUlangi();
-  }, { enableHighAccuracy:true, timeout:15000 });
+  }
 }
 
 function tampilkanTombolUlangi(){
