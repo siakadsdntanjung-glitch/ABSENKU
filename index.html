@@ -259,7 +259,8 @@ canvas.chart{max-height:260px;}
           </div>
           <div class="msg info">Timeout menentukan berapa lama HP guru menunggu sinyal GPS/lokasi sebelum menyerah. Kalau jaringan/GPS di lokasi sekolah sering lambat atau lemah, naikkan angka ini (misal 30-45 detik) supaya absen tidak keburu gagal "timeout". Kalau sinyal biasanya cepat, angka lebih kecil bikin proses absen lebih responsif.</div>
           <div class="msg info">Semakin kecil angka batas akurasi, semakin ketat sistem menolak lokasi yang tidak presisi/mencurigakan (misalnya dari GPS palsu atau sinyal lemah). 30-75 meter cukup wajar untuk HP standar.</div>
-          <button type="button" class="btn btn-outline" style="margin-bottom:12px" onclick="ambilLokasiSekarang()">📍 Gunakan Lokasi Saat Ini</button>
+          <button type="button" class="btn btn-outline" style="margin-bottom:8px" onclick="ambilLokasiSekarang()">📍 Gunakan Lokasi Saat Ini</button>
+          <div id="infoAmbilLokasi" style="margin-bottom:12px"></div>
           <button class="btn" type="submit">Simpan Titik Koordinat</button>
         </form>
       </div>
@@ -316,6 +317,7 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
+const isAppDesktop = /Electron/i.test(navigator.userAgent);
 const db = firebase.database();
 
 /* GANTI konfigurasi di atas sesuai proyek Firebase Anda sendiri sebelum publish. */
@@ -717,6 +719,8 @@ async function simpanJam(e){
 
 /* --- Titik Koordinat --- */
 async function loadLokasi(){
+  const info = document.getElementById('infoAmbilLokasi');
+  if (info) info.innerHTML = '';
   const snap = await db.ref('schools/'+currentUser.uid+'/settings/lokasi').once('value');
   const l = snap.val();
   if (l){
@@ -728,11 +732,38 @@ async function loadLokasi(){
   }
 }
 function ambilLokasiSekarang(){
+  const info = document.getElementById('infoAmbilLokasi');
+  if (isAppDesktop){
+    info.innerHTML = `
+      <div class="msg info">
+        Di aplikasi desktop, lokasi otomatis tidak tersedia. Isi Latitude &amp; Longitude secara manual, caranya:
+        <ol style="margin:8px 0 0 18px;padding:0">
+          <li>Buka Google Maps (di HP atau browser lain), cari lokasi sekolah.</li>
+          <li>Tekan lama di peta (HP) atau klik kanan (PC/laptop) tepat di titik sekolah.</li>
+          <li>Akan muncul dua angka, contoh: <b>-8.665065, 120.662111</b> — itu Latitude &amp; Longitude.</li>
+          <li>Salin angka pertama ke kolom Latitude, angka kedua ke kolom Longitude di form ini.</li>
+        </ol>
+      </div>`;
+    return;
+  }
   if (!navigator.geolocation){ alert('Geolocation tidak didukung browser ini.'); return; }
+  if (!window.isSecureContext){ alert('Halaman ini harus diakses lewat HTTPS agar lokasi bisa diambil.'); return; }
+  info.innerHTML = '<div class="msg info">📡 Mencari lokasi presisi tinggi, mohon tunggu...</div>';
   navigator.geolocation.getCurrentPosition(pos=>{
-    document.getElementById('latSekolah').value = pos.coords.latitude;
-    document.getElementById('lngSekolah').value = pos.coords.longitude;
-  }, err=> alert('Gagal mengambil lokasi: '+err.message));
+    const { latitude, longitude, accuracy } = pos.coords;
+    document.getElementById('latSekolah').value = latitude;
+    document.getElementById('lngSekolah').value = longitude;
+    const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+    const buruk = accuracy > 100;
+    info.innerHTML = `
+      <div class="msg ${buruk ? 'error' : 'ok'}">
+        Lokasi terambil dengan akurasi ±${Math.round(accuracy)}m.
+        ${buruk ? ' Akurasi ini kurang bagus dan berisiko salah lokasi — sebaiknya pastikan GPS aktif, coba di luar ruangan/dekat jendela, lalu klik lagi tombol di atas sebelum menyimpan.' : ' Silakan cek dulu titiknya di peta sebelum menyimpan.'}
+      </div>
+      <a href="${mapsUrl}" target="_blank" rel="noopener">🗺️ Cek titik ini di Google Maps</a>`;
+  }, err=>{
+    info.innerHTML = `<div class="msg error">Gagal mengambil lokasi: ${err.message}</div>`;
+  }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
 }
 async function simpanLokasi(e){
   e.preventDefault();
@@ -872,6 +903,11 @@ async function ambilFotoDanAbsen(){
 }
 
 async function prosesAbsen(selfieDataUrl){
+  if (isAppDesktop){
+    showMsg('absenGuruMsg', 'Absen guru harus dilakukan lewat HP (scan QR dengan kamera HP), bukan lewat aplikasi desktop, karena butuh GPS &amp; kamera asli dari HP.', 'error');
+    tampilkanTombolUlangi();
+    return;
+  }
   if (!navigator.geolocation){ showMsg('absenGuruMsg','Geolocation tidak didukung.','error'); return; }
   if (!window.isSecureContext){
     showMsg('absenGuruMsg','Halaman ini harus diakses lewat HTTPS agar lokasi bisa diambil.','error');
