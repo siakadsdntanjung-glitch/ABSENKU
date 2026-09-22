@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ABSENSIKU - Sistem Absensi Guru</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+:root{
+  --primary:#2563eb; --primary-dark:#1d4ed8; --bg:#f1f5f9; --card:#ffffff;
+  --text:#0f172a; --muted:#64748b; --border:#e2e8f0;
+  --green:#16a34a; --red:#dc2626; --yellow:#d97706;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
+.hidden{display:none !important;}
+a{color:var(--primary);text-decoration:none;}
+button{cursor:pointer;font-family:inherit;}
+
+/* ===== Auth Screen ===== */
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:linear-gradient(135deg,#1d4ed8,#1e293b);}
+.auth-box{background:var(--card);border-radius:16px;padding:32px;width:100%;max-width:420px;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+.auth-logo{text-align:center;margin-bottom:20px;}
+.auth-logo h1{margin:0;font-size:26px;color:var(--primary);}
+.auth-logo p{margin:4px 0 0;color:var(--muted);font-size:13px;}
+.tabs{display:flex;background:#eef2f7;border-radius:10px;padding:4px;margin-bottom:20px;}
+.tabs button{flex:1;padding:9px;border:none;background:transparent;border-radius:8px;font-weight:600;font-size:13px;color:var(--muted);}
+.tabs button.active{background:var(--primary);color:#fff;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;color:#334155;}
+.field input,.field select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;}
+.btn{display:block;width:100%;padding:11px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-weight:600;font-size:14px;}
+.btn:hover{background:var(--primary-dark);}
+.btn-outline{background:transparent;border:1px solid var(--primary);color:var(--primary);}
+.btn-danger{background:var(--red);}
+.btn-yellow{background:var(--yellow);}
+.btn-green{background:var(--green);}
+.btn-sm{padding:6px 10px;font-size:12px;border-radius:6px;width:auto;}
+.msg{font-size:13px;padding:9px 12px;border-radius:8px;margin-bottom:14px;}
+.msg.error{background:#fee2e2;color:#991b1b;}
+.msg.ok{background:#dcfce7;color:#166534;}
+.msg.info{background:#dbeafe;color:#1e40af;}
+.link-btn{background:none;border:none;color:var(--primary);font-size:13px;text-decoration:underline;padding:0;}
+
+/* ===== App Layout ===== */
+.app{display:flex;min-height:100vh;}
+.sidebar{width:230px;background:#0f172a;color:#e2e8f0;flex-shrink:0;display:flex;flex-direction:column;}
+.sidebar .brand{padding:20px;font-weight:700;font-size:18px;border-bottom:1px solid #1e293b;color:#fff;}
+.sidebar .brand span{color:#60a5fa;}
+.sidebar nav{flex:1;padding:10px;}
+.sidebar nav button{width:100%;text-align:left;padding:11px 14px;background:none;border:none;color:#cbd5e1;
+  border-radius:8px;margin-bottom:4px;font-size:14px;}
+.sidebar nav button.active,.sidebar nav button:hover{background:#1e293b;color:#fff;}
+.sidebar .logout{padding:14px;border-top:1px solid #1e293b;}
+.main{flex:1;padding:26px;max-width:100%;overflow-x:auto;}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;}
+.topbar h2{margin:0;}
+.badge{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;}
+.badge.aktif{background:#dcfce7;color:#166534;}
+.badge.pending{background:#fef9c3;color:#854d0e;}
+.badge.nonaktif{background:#fee2e2;color:#991b1b;}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:24px;}
+.card{background:var(--card);border-radius:12px;padding:18px;border:1px solid var(--border);}
+.card .num{font-size:28px;font-weight:700;}
+.card .lbl{font-size:13px;color:var(--muted);margin-top:2px;}
+.panel{background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border);margin-bottom:20px;}
+.panel h3{margin-top:0;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;}
+.actions{display:flex;gap:6px;flex-wrap:wrap;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:700px){.grid2{grid-template-columns:1fr;} .sidebar{width:70px;} .sidebar .brand,.sidebar nav button span.txt{display:none;} .main{padding:14px;}}
+.qrbox{text-align:center;padding:14px;border:1px dashed var(--border);border-radius:10px;}
+canvas.chart{max-height:260px;}
+
+/* ===== Guru Absen Page ===== */
+.absen-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:#0f172a;}
+.absen-box{background:#fff;border-radius:16px;padding:28px;max-width:420px;width:100%;text-align:center;}
+.absen-box h2{margin-top:0;}
+.jam-live{font-size:34px;font-weight:700;color:var(--primary);margin:10px 0;}
+</style>
+</head>
+<body>
+
+<!-- ============ SCREEN: LOGIN / REGISTER ============ -->
+<div id="screen-auth" class="auth-wrap hidden">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <h1>ABSENSI<span style="color:#0f172a">KU</span></h1>
+      <p>Sistem Absensi Guru Berbasis Lokasi & QR</p>
+    </div>
+    <div class="tabs">
+      <button id="tabLoginSekolah" class="active" onclick="switchTab('loginSekolah')">Masuk</button>
+      <button id="tabDaftar" onclick="switchTab('daftar')">Daftar Akun</button>
+    </div>
+    <div id="authMsg"></div>
+
+    <form id="formLoginSekolah" onsubmit="return loginSekolah(event)">
+      <div class="field"><label>Email</label><input type="email" id="lsEmail" required></div>
+      <div class="field"><label>Kata Sandi</label><input type="password" id="lsPass" required></div>
+      <button class="btn" type="submit">Masuk</button>
+    </form>
+
+    <form id="formDaftar" class="hidden" onsubmit="return daftarAdmin(event)">
+      <div id="daftarModeMsg"></div>
+      <div id="daftarSekolahFields">
+        <div class="field"><label>Nama Sekolah</label><input type="text" id="dNamaSekolah"></div>
+        <div class="field"><label>NPSN</label><input type="text" id="dNpsn"></div>
+      </div>
+      <div class="field"><label>Email</label><input type="email" id="dEmail" required></div>
+      <div class="field"><label>Kata Sandi</label><input type="password" id="dPass" required minlength="6"></div>
+      <button class="btn" type="submit" id="daftarBtnTxt">Daftar (Menunggu Verifikasi)</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ SCREEN: MENUNGGU VERIFIKASI ============ -->
+<div id="screen-pending" class="auth-wrap hidden">
+  <div class="auth-box" style="text-align:center">
+    <h2>⏳ Menunggu Verifikasi</h2>
+    <p style="color:var(--muted)">Akun sekolah Anda <b id="pendingStatusTxt"></b> oleh Admin Utama.</p>
+    <p style="color:var(--muted)">Silakan hubungi WhatsApp <b>085183859997</b> untuk proses verifikasi, sertakan nama sekolah & email Anda.</p>
+    <button class="btn btn-outline" onclick="logout()">Kembali ke Login</button>
+  </div>
+</div>
+
+<!-- ============ SCREEN: ADMIN UTAMA ============ -->
+<div id="screen-utama" class="app hidden">
+  <div class="sidebar">
+    <div class="brand">ABSENSI<span>KU</span><div style="font-size:11px;color:#94a3b8;font-weight:400">Admin Utama</div></div>
+    <nav>
+      <button class="nav-utama active" data-tab="dashboard" onclick="showUtamaTab('dashboard')"><span class="txt">📊 Dashboard</span></button>
+      <button class="nav-utama" data-tab="aktivasi" onclick="showUtamaTab('aktivasi')"><span class="txt">✅ Aktivasi Akun</span></button>
+    </nav>
+    <div class="logout"><button class="btn btn-outline" onclick="logout()">Keluar</button></div>
+  </div>
+  <div class="main">
+    <div id="utama-dashboard">
+      <div class="topbar"><h2>Dashboard Admin Utama</h2></div>
+      <div class="cards" id="utamaCards"></div>
+      <div class="grid2">
+        <div class="panel"><h3>Status Sekolah</h3><canvas class="chart" id="chartStatus"></canvas></div>
+        <div class="panel"><h3>Progres Aktivasi</h3><canvas class="chart" id="chartProgres"></canvas></div>
+      </div>
+    </div>
+    <div id="utama-aktivasi" class="hidden">
+      <div class="topbar"><h2>Aktivasi Akun Sekolah</h2></div>
+      <div class="panel">
+        <div class="field" style="max-width:320px"><input type="text" id="cariSekolah" placeholder="Cari nama sekolah / NPSN / email..." oninput="loadUtamaAktivasi()"></div>
+        <table>
+          <thead><tr><th>Sekolah</th><th>NPSN</th><th>Email</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody id="tblAdmins"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="utama-detail" class="hidden">
+      <div class="topbar">
+        <h2 id="detailNamaSekolah">Detail Sekolah</h2>
+        <button class="btn btn-outline" style="width:auto;padding:8px 16px" onclick="tutupDetailSekolah()">&larr; Kembali</button>
+      </div>
+      <div class="cards" id="detailCards"></div>
+      <div class="grid2">
+        <div class="panel">
+          <h3>Pengaturan Jam</h3>
+          <p id="detailJam" style="color:var(--muted);font-size:14px"></p>
+        </div>
+        <div class="panel">
+          <h3>Titik Koordinat</h3>
+          <p id="detailLokasi" style="color:var(--muted);font-size:14px"></p>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Daftar Guru</h3>
+        <table>
+          <thead><tr><th>Nama</th><th>NIP</th><th>Mapel</th><th>Hadir Hari Ini</th></tr></thead>
+          <tbody id="detailTblGuru"></tbody>
+        </table>
+      </div>
+      <div class="panel"><h3>Kehadiran 7 Hari Terakhir</h3><canvas class="chart" id="chartDetailKehadiran"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN: ADMIN SEKOLAH ============ -->
+<div id="screen-sekolah" class="app hidden">
+  <div class="sidebar">
+    <div class="brand">ABSENSI<span>KU</span><div style="font-size:11px;color:#94a3b8;font-weight:400" id="sekolahNamaSidebar"></div></div>
+    <nav>
+      <button class="nav-sekolah active" data-tab="dashboard" onclick="showSekolahTab('dashboard')"><span class="txt">📊 Dashboard</span></button>
+      <button class="nav-sekolah" data-tab="guru" onclick="showSekolahTab('guru')"><span class="txt">👤 Data Guru</span></button>
+      <button class="nav-sekolah" data-tab="jam" onclick="showSekolahTab('jam')"><span class="txt">⏰ Jam Masuk/Pulang</span></button>
+      <button class="nav-sekolah" data-tab="lokasi" onclick="showSekolahTab('lokasi')"><span class="txt">📍 Titik Koordinat</span></button>
+      <button class="nav-sekolah" data-tab="rekap" onclick="showSekolahTab('rekap')"><span class="txt">📥 Rekap Kehadiran</span></button>
+    </nav>
+    <div class="logout"><button class="btn btn-outline" onclick="logout()">Keluar</button></div>
+  </div>
+  <div class="main">
+    <div id="sekolah-dashboard">
+      <div class="topbar"><h2>Dashboard Sekolah</h2></div>
+      <div class="cards" id="sekolahCards"></div>
+      <div class="panel"><h3>Kehadiran 7 Hari Terakhir</h3><canvas class="chart" id="chartKehadiran"></canvas></div>
+    </div>
+
+    <div id="sekolah-guru" class="hidden">
+      <div class="topbar"><h2>Data Guru</h2></div>
+      <div class="panel">
+        <h3>Tambah Guru</h3>
+        <form onsubmit="return tambahGuru(event)" class="grid2">
+          <div class="field"><label>Nama Guru</label><input type="text" id="gNama" required></div>
+          <div class="field"><label>NIP / NUPTK</label><input type="text" id="gNip" required></div>
+          <div class="field"><label>Mapel / Jabatan</label><input type="text" id="gMapel"></div>
+          <div class="field" style="display:flex;align-items:flex-end"><button class="btn" type="submit">Tambah & Generate QR</button></div>
+        </form>
+      </div>
+      <div class="panel">
+        <table>
+          <thead><tr><th>Nama</th><th>NIP</th><th>Mapel</th><th>QR Login</th><th>Aksi</th></tr></thead>
+          <tbody id="tblGuru"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="sekolah-jam" class="hidden">
+      <div class="topbar"><h2>Seting Jam Masuk & Pulang</h2></div>
+      <div class="panel" style="max-width:420px">
+        <form onsubmit="return simpanJam(event)">
+          <div class="field"><label>Jam Masuk</label><input type="time" id="jamMasuk" required></div>
+          <div class="field"><label>Jam Pulang</label><input type="time" id="jamPulang" required></div>
+          <div class="field"><label>Toleransi Terlambat (menit)</label><input type="number" id="toleransi" value="15" required></div>
+          <button class="btn" type="submit">Simpan Pengaturan Jam</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="sekolah-lokasi" class="hidden">
+      <div class="topbar"><h2>Seting Titik Koordinat Sekolah</h2></div>
+      <div class="panel" style="max-width:420px">
+        <form onsubmit="return simpanLokasi(event)">
+          <div class="field"><label>Latitude</label><input type="text" id="latSekolah" required></div>
+          <div class="field"><label>Longitude</label><input type="text" id="lngSekolah" required></div>
+          <div class="field"><label>Radius Absen (meter)</label><input type="number" id="radiusSekolah" value="100" required></div>
+          <div class="field">
+            <label>Batas Akurasi GPS Maksimal (meter)</label>
+            <input type="number" id="akurasiSekolah" value="50" required>
+          </div>
+          <div class="msg info">Semakin kecil angka batas akurasi, semakin ketat sistem menolak lokasi yang tidak presisi/mencurigakan (misalnya dari GPS palsu atau sinyal lemah). 30-75 meter cukup wajar untuk HP standar.</div>
+          <button type="button" class="btn btn-outline" style="margin-bottom:12px" onclick="ambilLokasiSekarang()">📍 Gunakan Lokasi Saat Ini</button>
+          <button class="btn" type="submit">Simpan Titik Koordinat</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="sekolah-rekap" class="hidden">
+      <div class="topbar"><h2>Rekap Kehadiran Guru</h2></div>
+      <div class="panel">
+        <div class="grid2">
+          <div class="field"><label>Dari Tanggal</label><input type="date" id="rekapDari"></div>
+          <div class="field"><label>Sampai Tanggal</label><input type="date" id="rekapSampai"></div>
+        </div>
+        <button class="btn btn-outline" style="width:auto;padding:9px 18px" onclick="muatRekap()">Tampilkan</button>
+        <button class="btn" style="width:auto;padding:9px 18px;margin-left:8px" onclick="downloadRekapCSV()">⬇ Download CSV</button>
+        <div style="overflow-x:auto;margin-top:16px">
+        <table>
+          <thead><tr><th>Tanggal</th><th>Nama Guru</th><th>Jam Masuk</th><th>Selfie Masuk</th><th>Jam Pulang</th><th>Selfie Pulang</th><th>Status</th></tr></thead>
+          <tbody id="tblRekap"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN: ABSEN GURU (via QR) ============ -->
+<div id="screen-absenguru" class="absen-wrap hidden">
+  <div class="absen-box">
+    <h2>ABSENSIKU</h2>
+    <div id="absenGuruInfo"></div>
+    <div class="jam-live" id="jamLive">--:--:--</div>
+    <div id="absenGuruMsg"></div>
+
+    <video id="camPreview" autoplay playsinline muted class="hidden" style="width:100%;border-radius:10px;margin:10px 0;background:#000;"></video>
+    <canvas id="camCanvas" class="hidden"></canvas>
+    <img id="camHasil" class="hidden" style="width:100%;border-radius:10px;margin:10px 0;" />
+
+    <button class="btn" id="btnMulaiAbsen" onclick="mulaiAbsen()">🤳 Mulai Absen (Ambil Selfie)</button>
+    <button class="btn hidden" id="btnAmbilFoto" onclick="ambilFotoDanAbsen()">📸 Ambil Foto & Kirim Absen</button>
+  </div>
+</div>
+
+<script>
+/* ================= FIREBASE CONFIG ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCV8Y_k8QGXmJOQ2O0nHytjrvLSUL5sGOI",
+  authDomain: "absensi-cc9a7.firebaseapp.com",
+  databaseURL: "https://absensi-cc9a7-default-rtdb.firebaseio.com",
+  projectId: "absensi-cc9a7",
+  storageBucket: "absensi-cc9a7.firebasestorage.app",
+  messagingSenderId: "1060539146857",
+  appId: "1:1060539146857:web:c844bcb85599bbf66a78f8",
+  measurementId: "G-7DXKL5BR93"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+/* GANTI konfigurasi di atas sesuai proyek Firebase Anda sendiri sebelum publish. */
+
+let currentUser = null;
+let currentRole = null;
+let currentAdminData = null;
+let guruCache = {};
+let chartStatus, chartProgres, chartKehadiran;
+let adminUtamaSudahAda = null; // cache hasil cek meta/adminUtamaExists
+
+/* ================= ROUTING AWAL ================= */
+window.addEventListener('load', () => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('absen')) {
+    initAbsenGuru(params.get('absen'));
+    return;
+  }
+  document.getElementById('screen-auth').classList.remove('hidden');
+});
+
+auth.onAuthStateChanged(async (user) => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('absen')) return; // halaman absen guru pakai anonymous auth, jangan ikut alur ini
+  currentUser = user;
+  if (!user) { showScreen('auth'); return; }
+  const snap = await db.ref('admins/' + user.uid).once('value');
+  const data = snap.val();
+  if (!data) { showMsg('authMsg', 'Data akun tidak ditemukan.', 'error'); auth.signOut(); return; }
+  currentAdminData = data;
+  currentRole = data.role;
+
+  if (data.role === 'admin_utama') {
+    showScreen('utama');
+    loadUtamaDashboard();
+    loadUtamaAktivasi();
+  } else if (data.role === 'admin_sekolah') {
+    if (data.status !== 'aktif') {
+      document.getElementById('pendingStatusTxt').innerText = data.status === 'nonaktif' ? 'dinonaktifkan' : 'belum diverifikasi';
+      showScreen('pending');
+    } else {
+      document.getElementById('sekolahNamaSidebar').innerText = data.namaSekolah || '';
+      showScreen('sekolah');
+      loadSekolahDashboard();
+    }
+  }
+});
+
+function showScreen(name){
+  ['auth','pending','utama','sekolah','absenguru'].forEach(s=>{
+    document.getElementById('screen-'+s).classList.toggle('hidden', s!==name);
+  });
+}
+
+function showMsg(elId, text, type){
+  document.getElementById(elId).innerHTML = `<div class="msg ${type}">${text}</div>`;
+}
+
+/* ================= TAB LOGIN/DAFTAR ================= */
+function switchTab(tab){
+  document.getElementById('authMsg').innerHTML = '';
+  ['loginSekolah','daftar'].forEach(t=>{
+    document.getElementById('form'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('hidden', t!==tab);
+  });
+  document.getElementById('tabLoginSekolah').classList.toggle('active', tab==='loginSekolah');
+  document.getElementById('tabDaftar').classList.toggle('active', tab==='daftar');
+  if (tab==='daftar') siapkanFormDaftar();
+}
+
+async function siapkanFormDaftar(){
+  const snap = await db.ref('meta/adminUtamaExists').once('value');
+  adminUtamaSudahAda = !!snap.val();
+  const sekolahFields = document.getElementById('daftarSekolahFields');
+  const msg = document.getElementById('daftarModeMsg');
+  const btn = document.getElementById('daftarBtnTxt');
+  if (!adminUtamaSudahAda){
+    sekolahFields.classList.add('hidden');
+    document.getElementById('dNamaSekolah').required = false;
+    document.getElementById('dNpsn').required = false;
+    msg.innerHTML = '<div class="msg info">Belum ada Admin Utama terdaftar. Pendaftaran ini akan otomatis menjadi <b>Admin Utama</b>.</div>';
+    btn.innerText = 'Daftar sebagai Admin Utama';
+  } else {
+    sekolahFields.classList.remove('hidden');
+    document.getElementById('dNamaSekolah').required = true;
+    document.getElementById('dNpsn').required = true;
+    msg.innerHTML = '';
+    btn.innerText = 'Daftar (Menunggu Verifikasi)';
+  }
+}
+
+/* ================= AUTH ACTIONS ================= */
+async function loginSekolah(e){
+  e.preventDefault();
+  const email = document.getElementById('lsEmail').value;
+  const pass = document.getElementById('lsPass').value;
+  try{ await auth.signInWithEmailAndPassword(email, pass); }
+  catch(err){ showMsg('authMsg', 'Login gagal: '+err.message, 'error'); }
+  return false;
+}
+
+async function daftarAdmin(e){
+  e.preventDefault();
+  const email = document.getElementById('dEmail').value;
+  const pass = document.getElementById('dPass').value;
+  try{
+    // cek ulang sesaat sebelum daftar, untuk menghindari kondisi balapan (race condition)
+    const cekSnap = await db.ref('meta/adminUtamaExists').once('value');
+    const sudahAda = !!cekSnap.val();
+
+    if (!sudahAda){
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      const updates = {};
+      updates['admins/'+cred.user.uid] = { email, role:'admin_utama', status:'aktif', createdAt: Date.now() };
+      updates['meta/adminUtamaExists'] = true;
+      try{
+        await db.ref().update(updates);
+        showMsg('authMsg', 'Akun Admin Utama berhasil dibuat. Silakan masuk lewat tab Admin Utama.', 'ok');
+      }catch(dbErr){
+        // kemungkinan ada yang lebih dulu mendaftar jadi admin utama (race condition) -> daftarkan sebagai admin sekolah sebagai gantinya
+        await db.ref('admins/'+cred.user.uid).set({ email, role:'admin_sekolah', status:'pending', createdAt: Date.now() });
+        showMsg('authMsg', 'Admin Utama sudah lebih dulu terdaftar. Akun Anda didaftarkan sebagai Admin Sekolah, menunggu verifikasi.<br><br>Untuk mempercepat proses verifikasi, silakan hubungi WhatsApp <b>085183859997</b> dan sertakan nama sekolah & email yang Anda daftarkan.', 'info');
+      }
+    } else {
+      const namaSekolah = document.getElementById('dNamaSekolah').value;
+      const npsn = document.getElementById('dNpsn').value;
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      await db.ref('admins/'+cred.user.uid).set({
+        email, namaSekolah, npsn, role:'admin_sekolah', status:'pending', createdAt: Date.now()
+      });
+      showMsg('authMsg', 'Pendaftaran berhasil. Akun Anda sedang menunggu verifikasi Admin Utama.<br><br>Untuk mempercepat proses verifikasi, silakan hubungi WhatsApp <b>085183859997</b> dan sertakan nama sekolah & email yang Anda daftarkan.', 'ok');
+    }
+  }catch(err){ showMsg('authMsg', 'Gagal daftar: '+err.message, 'error'); }
+  return false;
+}
+
+function logout(){ auth.signOut(); guruCache = {}; location.href = location.pathname; }
+
+/* ================= ADMIN UTAMA ================= */
+function showUtamaTab(tab){
+  document.querySelectorAll('.nav-utama').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.getElementById('utama-dashboard').classList.toggle('hidden', tab!=='dashboard');
+  document.getElementById('utama-aktivasi').classList.toggle('hidden', tab!=='aktivasi');
+  document.getElementById('utama-detail').classList.add('hidden');
+}
+
+async function loadUtamaDashboard(){
+  const snap = await db.ref('admins').once('value');
+  const all = snap.val() || {};
+  let total=0, aktif=0, pending=0, nonaktif=0;
+  Object.values(all).forEach(a=>{
+    if (a.role !== 'admin_sekolah') return;
+    total++;
+    if (a.status==='aktif') aktif++;
+    else if (a.status==='pending') pending++;
+    else if (a.status==='nonaktif') nonaktif++;
+  });
+  document.getElementById('utamaCards').innerHTML = `
+    <div class="card"><div class="num">${total}</div><div class="lbl">Total Sekolah</div></div>
+    <div class="card"><div class="num" style="color:var(--green)">${aktif}</div><div class="lbl">Aktif</div></div>
+    <div class="card"><div class="num" style="color:var(--yellow)">${pending}</div><div class="lbl">Menunggu Verifikasi</div></div>
+    <div class="card"><div class="num" style="color:var(--red)">${nonaktif}</div><div class="lbl">Nonaktif</div></div>
+  `;
+  const ctx1 = document.getElementById('chartStatus');
+  if (chartStatus) chartStatus.destroy();
+  chartStatus = new Chart(ctx1, { type:'doughnut', data:{ labels:['Aktif','Pending','Nonaktif'],
+    datasets:[{ data:[aktif,pending,nonaktif], backgroundColor:['#16a34a','#d97706','#dc2626'] }] } });
+
+  const ctx2 = document.getElementById('chartProgres');
+  if (chartProgres) chartProgres.destroy();
+  const persen = total ? Math.round((aktif/total)*100) : 0;
+  chartProgres = new Chart(ctx2, { type:'bar', data:{ labels:['Progres Aktivasi (%)'],
+    datasets:[{ label:'Persen Aktif', data:[persen], backgroundColor:'#2563eb' }] },
+    options:{ scales:{ y:{ min:0, max:100 } } } });
+}
+
+async function loadUtamaAktivasi(){
+  const snap = await db.ref('admins').once('value');
+  const all = snap.val() || {};
+  const q = (document.getElementById('cariSekolah')?.value || '').toLowerCase().trim();
+  let rows = '';
+  Object.entries(all).forEach(([uid,a])=>{
+    if (a.role !== 'admin_sekolah') return;
+    if (q){
+      const hay = ((a.namaSekolah||'')+' '+(a.npsn||'')+' '+(a.email||'')).toLowerCase();
+      if (!hay.includes(q)) return;
+    }
+    rows += `<tr>
+      <td>${a.namaSekolah||'-'}</td><td>${a.npsn||'-'}</td><td>${a.email}</td>
+      <td><span class="badge ${a.status}">${a.status}</span></td>
+      <td class="actions">
+        <button class="btn btn-outline btn-sm" onclick="lihatDetailSekolah('${uid}')">Lihat Detail</button>
+        ${a.status!=='aktif' ? `<button class="btn btn-green btn-sm" onclick="ubahStatus('${uid}','aktif')">Aktifkan</button>` : ''}
+        ${a.status!=='nonaktif' ? `<button class="btn btn-yellow btn-sm" onclick="ubahStatus('${uid}','nonaktif')">Nonaktifkan</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="hapusAkun('${uid}')">Hapus</button>
+      </td></tr>`;
+  });
+  document.getElementById('tblAdmins').innerHTML = rows || '<tr><td colspan="5">Tidak ada sekolah yang cocok.</td></tr>';
+}
+
+let chartDetailKehadiran;
+async function lihatDetailSekolah(uid){
+  document.getElementById('utama-dashboard').classList.add('hidden');
+  document.getElementById('utama-aktivasi').classList.add('hidden');
+  document.getElementById('utama-detail').classList.remove('hidden');
+
+  const [adminSnap, guruSnap, jamSnap, lokasiSnap, absenSnap] = await Promise.all([
+    db.ref('admins/'+uid).once('value'),
+    db.ref('schools/'+uid+'/guru').once('value'),
+    db.ref('schools/'+uid+'/settings/jam').once('value'),
+    db.ref('schools/'+uid+'/settings/lokasi').once('value'),
+    db.ref('schools/'+uid+'/absensi').once('value')
+  ]);
+  const admin = adminSnap.val() || {};
+  const guru = guruSnap.val() || {};
+  const jam = jamSnap.val();
+  const lokasi = lokasiSnap.val();
+  const absen = absenSnap.val() || {};
+
+  document.getElementById('detailNamaSekolah').innerText = 'Detail: ' + (admin.namaSekolah || '-');
+
+  const today = new Date().toISOString().slice(0,10);
+  const totalGuru = Object.keys(guru).length;
+  let hadirHariIni = 0;
+  Object.values(absen).forEach(rec=>{ if (rec[today] && rec[today].jamMasuk) hadirHariIni++; });
+
+  document.getElementById('detailCards').innerHTML = `
+    <div class="card"><div class="num">${totalGuru}</div><div class="lbl">Total Guru</div></div>
+    <div class="card"><div class="num" style="color:var(--green)">${hadirHariIni}</div><div class="lbl">Hadir Hari Ini</div></div>
+    <div class="card"><span class="badge ${admin.status}">${admin.status}</span><div class="lbl" style="margin-top:6px">Status Akun</div></div>
+    <div class="card"><div class="num" style="font-size:16px">${admin.npsn||'-'}</div><div class="lbl">NPSN</div></div>
+  `;
+
+  document.getElementById('detailJam').innerText = jam
+    ? `Masuk ${jam.masuk} — Pulang ${jam.pulang} (toleransi ${jam.toleransi||0} menit)`
+    : 'Belum diatur oleh sekolah.';
+  document.getElementById('detailLokasi').innerText = lokasi
+    ? `Lat ${lokasi.lat}, Lng ${lokasi.lng} — radius ${lokasi.radius}m`
+    : 'Belum diatur oleh sekolah.';
+
+  let rows = '';
+  Object.entries(guru).forEach(([gid,g])=>{
+    const rec = absen[gid] && absen[gid][today];
+    const status = rec ? (rec.status || 'Hadir') + (rec.jamPulang ? ' (Pulang)' : '') : 'Belum absen';
+    rows += `<tr><td>${g.nama}</td><td>${g.nip}</td><td>${g.mapel||'-'}</td><td>${status}</td></tr>`;
+  });
+  document.getElementById('detailTblGuru').innerHTML = rows || '<tr><td colspan="4">Belum ada data guru.</td></tr>';
+
+  const labels = [], data = [];
+  for (let i=6;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const key = d.toISOString().slice(0,10);
+    labels.push(key.slice(5));
+    let count = 0;
+    Object.values(absen).forEach(rec=>{ if (rec[key] && rec[key].jamMasuk) count++; });
+    data.push(count);
+  }
+  const ctx = document.getElementById('chartDetailKehadiran');
+  if (chartDetailKehadiran) chartDetailKehadiran.destroy();
+  chartDetailKehadiran = new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label:'Guru Hadir', data, borderColor:'#2563eb', backgroundColor:'#93c5fd', tension:.3, fill:true }] } });
+}
+
+function tutupDetailSekolah(){
+  document.getElementById('utama-detail').classList.add('hidden');
+  document.getElementById('utama-dashboard').classList.remove('hidden');
+  document.querySelectorAll('.nav-utama').forEach(b=>b.classList.toggle('active', b.dataset.tab==='dashboard'));
+}
+
+async function ubahStatus(uid, status){
+  await db.ref('admins/'+uid+'/status').set(status);
+  loadUtamaDashboard(); loadUtamaAktivasi();
+}
+async function hapusAkun(uid){
+  if (!confirm('Hapus akun ini beserta seluruh data sekolahnya? Tindakan tidak bisa dibatalkan.')) return;
+  await db.ref('admins/'+uid).remove();
+  await db.ref('schools/'+uid).remove();
+  loadUtamaDashboard(); loadUtamaAktivasi();
+}
+
+/* ================= ADMIN SEKOLAH ================= */
+function showSekolahTab(tab){
+  document.querySelectorAll('.nav-sekolah').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  ['dashboard','guru','jam','lokasi','rekap'].forEach(t=>{
+    document.getElementById('sekolah-'+t).classList.toggle('hidden', t!==tab);
+  });
+  if (tab==='guru') loadGuru();
+  if (tab==='jam') loadJam();
+  if (tab==='lokasi') loadLokasi();
+}
+
+async function loadSekolahDashboard(){
+  const uid = currentUser.uid;
+  const guruSnap = await db.ref('schools/'+uid+'/guru').once('value');
+  const guru = guruSnap.val() || {};
+  const totalGuru = Object.keys(guru).length;
+
+  const today = new Date().toISOString().slice(0,10);
+  const absenTodaySnap = await db.ref('schools/'+uid+'/absensi').once('value');
+  const absenAll = absenTodaySnap.val() || {};
+  let hadirHariIni = 0;
+  Object.values(absenAll).forEach(rec=>{ if (rec[today]) hadirHariIni++; });
+
+  document.getElementById('sekolahCards').innerHTML = `
+    <div class="card"><div class="num">${totalGuru}</div><div class="lbl">Total Guru</div></div>
+    <div class="card"><div class="num" style="color:var(--green)">${hadirHariIni}</div><div class="lbl">Hadir Hari Ini</div></div>
+    <div class="card"><div class="num" style="color:var(--red)">${totalGuru-hadirHariIni}</div><div class="lbl">Belum Absen</div></div>
+  `;
+
+  const labels = [], data = [];
+  for (let i=6;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const key = d.toISOString().slice(0,10);
+    labels.push(key.slice(5));
+    let count = 0;
+    Object.values(absenAll).forEach(rec=>{ if (rec[key]) count++; });
+    data.push(count);
+  }
+  const ctx = document.getElementById('chartKehadiran');
+  if (chartKehadiran) chartKehadiran.destroy();
+  chartKehadiran = new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label:'Guru Hadir', data, borderColor:'#2563eb', backgroundColor:'#93c5fd', tension:.3, fill:true }] } });
+}
+
+/* --- Data Guru & QR --- */
+async function loadGuru(){
+  const uid = currentUser.uid;
+  const snap = await db.ref('schools/'+uid+'/guru').once('value');
+  const data = snap.val() || {};
+  guruCache = data;
+  let rows = '';
+  Object.entries(data).forEach(([gid,g])=>{
+    rows += `<tr>
+      <td>${g.nama}</td><td>${g.nip}</td><td>${g.mapel||'-'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="tampilkanQR('${gid}')">Lihat QR</button></td>
+      <td><button class="btn btn-danger btn-sm" onclick="hapusGuru('${gid}')">Hapus</button></td>
+      </tr>
+      <tr id="qrrow-${gid}" class="hidden"><td colspan="5"><div class="qrbox" id="qrbox-${gid}"></div></td></tr>`;
+  });
+  document.getElementById('tblGuru').innerHTML = rows || '<tr><td colspan="5">Belum ada data guru.</td></tr>';
+}
+
+function tampilkanQR(gid){
+  const row = document.getElementById('qrrow-'+gid);
+  row.classList.toggle('hidden');
+  const box = document.getElementById('qrbox-'+gid);
+  if (box.childNodes.length) return;
+  const g = guruCache[gid];
+  const url = location.origin + location.pathname + '?absen=' + currentUser.uid + '_' + gid + '_' + g.token;
+  new QRCode(box, { text:url, width:160, height:160 });
+  const info = document.createElement('div');
+  info.style.marginTop = '8px'; info.style.fontSize='12px'; info.style.color='#64748b';
+  info.innerText = g.nama + ' — scan untuk absen';
+  box.appendChild(info);
+}
+
+async function tambahGuru(e){
+  e.preventDefault();
+  const uid = currentUser.uid;
+  const nama = document.getElementById('gNama').value;
+  const nip = document.getElementById('gNip').value;
+  const mapel = document.getElementById('gMapel').value;
+  const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const ref = db.ref('schools/'+uid+'/guru').push();
+  await ref.set({ nama, nip, mapel, token, createdAt: Date.now() });
+  document.getElementById('gNama').value=''; document.getElementById('gNip').value=''; document.getElementById('gMapel').value='';
+  loadGuru();
+  return false;
+}
+async function hapusGuru(gid){
+  if (!confirm('Hapus data guru ini?')) return;
+  await db.ref('schools/'+currentUser.uid+'/guru/'+gid).remove();
+  loadGuru();
+}
+
+/* --- Jam Masuk/Pulang --- */
+async function loadJam(){
+  const snap = await db.ref('schools/'+currentUser.uid+'/settings/jam').once('value');
+  const j = snap.val();
+  if (j){
+    document.getElementById('jamMasuk').value = j.masuk || '';
+    document.getElementById('jamPulang').value = j.pulang || '';
+    document.getElementById('toleransi').value = j.toleransi ?? 15;
+  }
+}
+async function simpanJam(e){
+  e.preventDefault();
+  const masuk = document.getElementById('jamMasuk').value;
+  const pulang = document.getElementById('jamPulang').value;
+  const toleransi = Number(document.getElementById('toleransi').value);
+  await db.ref('schools/'+currentUser.uid+'/settings/jam').set({ masuk, pulang, toleransi });
+  alert('Pengaturan jam tersimpan.');
+  return false;
+}
+
+/* --- Titik Koordinat --- */
+async function loadLokasi(){
+  const snap = await db.ref('schools/'+currentUser.uid+'/settings/lokasi').once('value');
+  const l = snap.val();
+  if (l){
+    document.getElementById('latSekolah').value = l.lat;
+    document.getElementById('lngSekolah').value = l.lng;
+    document.getElementById('radiusSekolah').value = l.radius;
+    document.getElementById('akurasiSekolah').value = l.akurasiMax ?? 50;
+  }
+}
+function ambilLokasiSekarang(){
+  if (!navigator.geolocation){ alert('Geolocation tidak didukung browser ini.'); return; }
+  navigator.geolocation.getCurrentPosition(pos=>{
+    document.getElementById('latSekolah').value = pos.coords.latitude;
+    document.getElementById('lngSekolah').value = pos.coords.longitude;
+  }, err=> alert('Gagal mengambil lokasi: '+err.message));
+}
+async function simpanLokasi(e){
+  e.preventDefault();
+  const lat = Number(document.getElementById('latSekolah').value);
+  const lng = Number(document.getElementById('lngSekolah').value);
+  const radius = Number(document.getElementById('radiusSekolah').value);
+  const akurasiMax = Number(document.getElementById('akurasiSekolah').value);
+  await db.ref('schools/'+currentUser.uid+'/settings/lokasi').set({ lat, lng, radius, akurasiMax });
+  alert('Titik koordinat tersimpan.');
+  return false;
+}
+
+/* --- Rekap Kehadiran --- */
+let rekapDataCache = [];
+async function muatRekap(){
+  const uid = currentUser.uid;
+  const dari = document.getElementById('rekapDari').value;
+  const sampai = document.getElementById('rekapSampai').value;
+  const guruSnap = await db.ref('schools/'+uid+'/guru').once('value');
+  const guru = guruSnap.val() || {};
+  const absenSnap = await db.ref('schools/'+uid+'/absensi').once('value');
+  const absen = absenSnap.val() || {};
+  rekapDataCache = [];
+  Object.entries(absen).forEach(([gid, tanggalMap])=>{
+    const namaGuru = guru[gid] ? guru[gid].nama : '(guru dihapus)';
+    Object.entries(tanggalMap).forEach(([tgl, rec])=>{
+      if (dari && tgl < dari) return;
+      if (sampai && tgl > sampai) return;
+      rekapDataCache.push({
+        tanggal:tgl, nama:namaGuru, masuk:rec.jamMasuk||'-', pulang:rec.jamPulang||'-', status:rec.status||'-',
+        selfieMasuk: rec.selfieMasuk || null, selfiePulang: rec.selfiePulang || null,
+        akurasiMasuk: rec.akurasiMasuk, akurasiPulang: rec.akurasiPulang
+      });
+    });
+  });
+  rekapDataCache.sort((a,b)=> a.tanggal.localeCompare(b.tanggal));
+  document.getElementById('tblRekap').innerHTML = rekapDataCache.map((r,i)=>
+    `<tr><td>${r.tanggal}</td><td>${r.nama}</td><td>${r.masuk}</td>
+      <td>${r.selfieMasuk ? `<img src="${r.selfieMasuk}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="lihatSelfieBesar(${i},'masuk')">` : '-'}</td>
+      <td>${r.pulang}</td>
+      <td>${r.selfiePulang ? `<img src="${r.selfiePulang}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="lihatSelfieBesar(${i},'pulang')">` : '-'}</td>
+      <td>${r.status}</td></tr>`
+  ).join('') || '<tr><td colspan="7">Tidak ada data pada rentang ini.</td></tr>';
+}
+function lihatSelfieBesar(i, jenis){
+  const r = rekapDataCache[i];
+  const src = jenis==='masuk' ? r.selfieMasuk : r.selfiePulang;
+  const akurasi = jenis==='masuk' ? r.akurasiMasuk : r.akurasiPulang;
+  if (!src) return;
+  const w = window.open('', '_blank');
+  w.document.write(`<title>Selfie ${r.nama} - ${r.tanggal}</title>
+    <body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#fff">
+    <img src="${src}" style="max-width:90vw;max-height:80vh;border-radius:10px">
+    <p>${r.nama} — ${r.tanggal} (${jenis}) ${akurasi ? '— akurasi GPS ±'+Math.round(akurasi)+'m' : ''}</p>
+    </body>`);
+}
+function downloadRekapCSV(){
+  if (!rekapDataCache.length){ alert('Muat data rekap terlebih dahulu.'); return; }
+  let csv = 'Tanggal,Nama Guru,Jam Masuk,Selfie Masuk,Jam Pulang,Selfie Pulang,Status\n';
+  rekapDataCache.forEach(r=>{ csv += `${r.tanggal},"${r.nama}",${r.masuk},${r.selfieMasuk?'Ada':'Tidak'},${r.pulang},${r.selfiePulang?'Ada':'Tidak'},${r.status}\n`; });
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'rekap-kehadiran-guru.csv';
+  link.click();
+}
+
+/* ================= HALAMAN ABSEN GURU (via QR) ================= */
+let absenCtx = {};
+function initAbsenGuru(param){
+  showScreen('absenguru');
+  const [schoolUid, guruId, token] = param.split('_');
+  absenCtx = { schoolUid, guruId, token };
+  setInterval(()=>{ document.getElementById('jamLive').innerText = new Date().toLocaleTimeString('id-ID'); }, 1000);
+
+  auth.signInAnonymously().catch(err=>{
+    showMsg('absenGuruMsg', 'Gagal memuat: '+err.message, 'error');
+  });
+
+  auth.onAuthStateChanged(async user=>{
+    if (!user) return;
+    const guruSnap = await db.ref('schools/'+schoolUid+'/guru/'+guruId).once('value');
+    const guru = guruSnap.val();
+    if (!guru || guru.token !== token){
+      document.getElementById('absenGuruInfo').innerHTML = '<div class="msg error">QR tidak valid.</div>';
+      return;
+    }
+    document.getElementById('absenGuruInfo').innerHTML = `<p>Halo, <b>${guru.nama}</b></p><p style="font-size:13px;color:#64748b">${guru.mapel||''}</p>`;
+  });
+}
+
+function haversine(lat1, lng1, lat2, lng2){
+  const R = 6371000;
+  const toRad = d=> d*Math.PI/180;
+  const dLat = toRad(lat2-lat1), dLng = toRad(lng2-lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+let camStream = null;
+
+async function mulaiAbsen(){
+  document.getElementById('absenGuruMsg').innerHTML = '';
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
+  }catch(err){
+    showMsg('absenGuruMsg', 'Tidak bisa mengakses kamera: '+err.message+'. Selfie wajib untuk validasi kehadiran.', 'error');
+    return;
+  }
+  const video = document.getElementById('camPreview');
+  video.srcObject = camStream;
+  video.classList.remove('hidden');
+  document.getElementById('btnMulaiAbsen').classList.add('hidden');
+  document.getElementById('btnAmbilFoto').classList.remove('hidden');
+}
+
+function hentikanKamera(){
+  if (camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
+  document.getElementById('camPreview').classList.add('hidden');
+}
+
+async function ambilFotoDanAbsen(){
+  const video = document.getElementById('camPreview');
+  const canvas = document.getElementById('camCanvas');
+  const W = 320, H = 240;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, W, H);
+  const selfieDataUrl = canvas.toDataURL('image/jpeg', 0.55);
+
+  document.getElementById('camHasil').src = selfieDataUrl;
+  document.getElementById('camHasil').classList.remove('hidden');
+  hentikanKamera();
+  document.getElementById('btnAmbilFoto').classList.add('hidden');
+
+  prosesAbsen(selfieDataUrl);
+}
+
+function prosesAbsen(selfieDataUrl){
+  if (!navigator.geolocation){ showMsg('absenGuruMsg','Geolocation tidak didukung.','error'); return; }
+  showMsg('absenGuruMsg', 'Memvalidasi lokasi...', 'info');
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const { schoolUid, guruId } = absenCtx;
+    const [locSnap, jamSnap] = await Promise.all([
+      db.ref('schools/'+schoolUid+'/settings/lokasi').once('value'),
+      db.ref('schools/'+schoolUid+'/settings/jam').once('value')
+    ]);
+    const lokasi = locSnap.val(); const jam = jamSnap.val();
+    if (!lokasi){ showMsg('absenGuruMsg','Sekolah belum mengatur titik koordinat.','error'); return; }
+
+    const akurasi = pos.coords.accuracy;
+    const akurasiMax = lokasi.akurasiMax || 50;
+    if (akurasi > akurasiMax){
+      showMsg('absenGuruMsg', `Akurasi GPS Anda terlalu rendah (±${Math.round(akurasi)}m, maksimal ±${akurasiMax}m). Coba lagi di area terbuka dengan sinyal GPS lebih baik.`, 'error');
+      tampilkanTombolUlangi();
+      return;
+    }
+
+    const jarak = haversine(pos.coords.latitude, pos.coords.longitude, lokasi.lat, lokasi.lng);
+    if (jarak > lokasi.radius){
+      showMsg('absenGuruMsg', `Anda berada ${Math.round(jarak)}m dari sekolah (maks ${lokasi.radius}m). Absen ditolak — pastikan Anda absen langsung di lokasi sekolah.`, 'error');
+      tampilkanTombolUlangi();
+      return;
+    }
+
+    const now = new Date();
+    const tgl = now.toISOString().slice(0,10);
+    const jamNow = now.toTimeString().slice(0,5);
+    const recRef = db.ref('schools/'+schoolUid+'/absensi/'+guruId+'/'+tgl);
+    const existing = (await recRef.once('value')).val();
+
+    if (!existing || !existing.jamMasuk){
+      let status = 'Hadir';
+      if (jam && jam.masuk){
+        const [hM,mM] = jam.masuk.split(':').map(Number);
+        const batas = new Date(now); batas.setHours(hM, mM + (jam.toleransi||0), 0, 0);
+        if (now > batas) status = 'Terlambat';
+      }
+      await recRef.update({
+        jamMasuk: jamNow, status, selfieMasuk: selfieDataUrl,
+        latMasuk: pos.coords.latitude, lngMasuk: pos.coords.longitude, akurasiMasuk: akurasi
+      });
+      showMsg('absenGuruMsg', `Absen masuk berhasil pukul ${jamNow} (${status}).`, 'ok');
+    } else if (!existing.jamPulang){
+      await recRef.update({
+        jamPulang: jamNow, selfiePulang: selfieDataUrl,
+        latPulang: pos.coords.latitude, lngPulang: pos.coords.longitude, akurasiPulang: akurasi
+      });
+      showMsg('absenGuruMsg', `Absen pulang berhasil pukul ${jamNow}.`, 'ok');
+    } else {
+      showMsg('absenGuruMsg', 'Anda sudah melakukan absen masuk dan pulang hari ini.', 'info');
+    }
+  }, err=>{
+    showMsg('absenGuruMsg', 'Gagal mengambil lokasi: '+err.message, 'error');
+    tampilkanTombolUlangi();
+  }, { enableHighAccuracy:true, timeout:15000 });
+}
+
+function tampilkanTombolUlangi(){
+  document.getElementById('camHasil').classList.add('hidden');
+  document.getElementById('btnMulaiAbsen').classList.remove('hidden');
+  document.getElementById('btnMulaiAbsen').innerText = '🔁 Ulangi Absen';
+}
+</script>
+</body>
+</html>
