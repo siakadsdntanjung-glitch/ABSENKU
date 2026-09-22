@@ -169,15 +169,9 @@ canvas.chart{max-height:260px;}
         <button class="btn btn-outline" style="width:auto;padding:8px 16px" onclick="tutupDetailSekolah()">&larr; Kembali</button>
       </div>
       <div class="cards" id="detailCards"></div>
-      <div class="grid2">
-        <div class="panel">
-          <h3>Pengaturan Jam</h3>
-          <p id="detailJam" style="color:var(--muted);font-size:14px"></p>
-        </div>
-        <div class="panel">
-          <h3>Titik Koordinat</h3>
-          <p id="detailLokasi" style="color:var(--muted);font-size:14px"></p>
-        </div>
+      <div class="panel">
+        <h3>Pengaturan Jam</h3>
+        <p id="detailJam" style="color:var(--muted);font-size:14px"></p>
       </div>
       <div class="panel">
         <h3>Daftar Guru</h3>
@@ -199,7 +193,6 @@ canvas.chart{max-height:260px;}
       <button class="nav-sekolah active" data-tab="dashboard" onclick="showSekolahTab('dashboard')"><span class="txt">📊 Dashboard</span></button>
       <button class="nav-sekolah" data-tab="guru" onclick="showSekolahTab('guru')"><span class="txt">👤 Data Guru</span></button>
       <button class="nav-sekolah" data-tab="jam" onclick="showSekolahTab('jam')"><span class="txt">⏰ Jam Masuk/Pulang</span></button>
-      <button class="nav-sekolah" data-tab="lokasi" onclick="showSekolahTab('lokasi')"><span class="txt">📍 Titik Koordinat</span></button>
       <button class="nav-sekolah" data-tab="rekap" onclick="showSekolahTab('rekap')"><span class="txt">📥 Rekap Kehadiran</span></button>
     </nav>
     <div class="logout"><button class="btn btn-outline" onclick="logout()">Keluar</button></div>
@@ -238,30 +231,6 @@ canvas.chart{max-height:260px;}
           <div class="field"><label>Jam Pulang</label><input type="time" id="jamPulang" required></div>
           <div class="field"><label>Toleransi Terlambat (menit)</label><input type="number" id="toleransi" value="15" required></div>
           <button class="btn" type="submit">Simpan Pengaturan Jam</button>
-        </form>
-      </div>
-    </div>
-
-    <div id="sekolah-lokasi" class="hidden">
-      <div class="topbar"><h2>Seting Titik Koordinat Sekolah</h2></div>
-      <div class="panel" style="max-width:420px">
-        <form onsubmit="return simpanLokasi(event)">
-          <div class="field"><label>Latitude</label><input type="text" id="latSekolah" required></div>
-          <div class="field"><label>Longitude</label><input type="text" id="lngSekolah" required></div>
-          <div class="field"><label>Radius Absen (meter)</label><input type="number" id="radiusSekolah" value="100" required></div>
-          <div class="field">
-            <label>Batas Akurasi GPS Maksimal (meter)</label>
-            <input type="number" id="akurasiSekolah" value="50" required>
-          </div>
-          <div class="field">
-            <label>Timeout Pengambilan Lokasi (detik)</label>
-            <input type="number" id="timeoutSekolah" value="20" min="10" max="60" required>
-          </div>
-          <div class="msg info">Timeout menentukan berapa lama HP guru menunggu sinyal GPS/lokasi sebelum menyerah. Kalau jaringan/GPS di lokasi sekolah sering lambat atau lemah, naikkan angka ini (misal 30-45 detik) supaya absen tidak keburu gagal "timeout". Kalau sinyal biasanya cepat, angka lebih kecil bikin proses absen lebih responsif.</div>
-          <div class="msg info">Semakin kecil angka batas akurasi, semakin ketat sistem menolak lokasi yang tidak presisi/mencurigakan (misalnya dari GPS palsu atau sinyal lemah). 30-75 meter cukup wajar untuk HP standar.</div>
-          <button type="button" class="btn btn-outline" style="margin-bottom:8px" onclick="ambilLokasiSekarang()">📍 Gunakan Lokasi Saat Ini</button>
-          <div id="infoAmbilLokasi" style="margin-bottom:12px"></div>
-          <button class="btn" type="submit">Simpan Titik Koordinat</button>
         </form>
       </div>
     </div>
@@ -317,7 +286,6 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
-const isAppDesktop = /Electron/i.test(navigator.userAgent);
 const db = firebase.database();
 
 /* GANTI konfigurasi di atas sesuai proyek Firebase Anda sendiri sebelum publish. */
@@ -527,17 +495,15 @@ async function lihatDetailSekolah(uid){
   document.getElementById('utama-aktivasi').classList.add('hidden');
   document.getElementById('utama-detail').classList.remove('hidden');
 
-  const [adminSnap, guruSnap, jamSnap, lokasiSnap, absenSnap] = await Promise.all([
+  const [adminSnap, guruSnap, jamSnap, absenSnap] = await Promise.all([
     db.ref('admins/'+uid).once('value'),
     db.ref('schools/'+uid+'/guru').once('value'),
     db.ref('schools/'+uid+'/settings/jam').once('value'),
-    db.ref('schools/'+uid+'/settings/lokasi').once('value'),
     db.ref('schools/'+uid+'/absensi').once('value')
   ]);
   const admin = adminSnap.val() || {};
   const guru = guruSnap.val() || {};
   const jam = jamSnap.val();
-  const lokasi = lokasiSnap.val();
   const absen = absenSnap.val() || {};
 
   document.getElementById('detailNamaSekolah').innerText = 'Detail: ' + (admin.namaSekolah || '-');
@@ -556,9 +522,6 @@ async function lihatDetailSekolah(uid){
 
   document.getElementById('detailJam').innerText = jam
     ? `Masuk ${jam.masuk} — Pulang ${jam.pulang} (toleransi ${jam.toleransi||0} menit)`
-    : 'Belum diatur oleh sekolah.';
-  document.getElementById('detailLokasi').innerText = lokasi
-    ? `Lat ${lokasi.lat}, Lng ${lokasi.lng} — radius ${lokasi.radius}m`
     : 'Belum diatur oleh sekolah.';
 
   let rows = '';
@@ -603,12 +566,11 @@ async function hapusAkun(uid){
 /* ================= ADMIN SEKOLAH ================= */
 function showSekolahTab(tab){
   document.querySelectorAll('.nav-sekolah').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-  ['dashboard','guru','jam','lokasi','rekap'].forEach(t=>{
+  ['dashboard','guru','jam','rekap'].forEach(t=>{
     document.getElementById('sekolah-'+t).classList.toggle('hidden', t!==tab);
   });
   if (tab==='guru') loadGuru();
   if (tab==='jam') loadJam();
-  if (tab==='lokasi') loadLokasi();
 }
 
 async function loadSekolahDashboard(){
@@ -717,66 +679,6 @@ async function simpanJam(e){
   return false;
 }
 
-/* --- Titik Koordinat --- */
-async function loadLokasi(){
-  const info = document.getElementById('infoAmbilLokasi');
-  if (info) info.innerHTML = '';
-  const snap = await db.ref('schools/'+currentUser.uid+'/settings/lokasi').once('value');
-  const l = snap.val();
-  if (l){
-    document.getElementById('latSekolah').value = l.lat;
-    document.getElementById('lngSekolah').value = l.lng;
-    document.getElementById('radiusSekolah').value = l.radius;
-    document.getElementById('akurasiSekolah').value = l.akurasiMax ?? 50;
-    document.getElementById('timeoutSekolah').value = l.timeoutDetik ?? 20;
-  }
-}
-function ambilLokasiSekarang(){
-  const info = document.getElementById('infoAmbilLokasi');
-  if (isAppDesktop){
-    info.innerHTML = `
-      <div class="msg info">
-        Di aplikasi desktop, lokasi otomatis tidak tersedia. Isi Latitude &amp; Longitude secara manual, caranya:
-        <ol style="margin:8px 0 0 18px;padding:0">
-          <li>Buka Google Maps (di HP atau browser lain), cari lokasi sekolah.</li>
-          <li>Tekan lama di peta (HP) atau klik kanan (PC/laptop) tepat di titik sekolah.</li>
-          <li>Akan muncul dua angka, contoh: <b>-8.665065, 120.662111</b> — itu Latitude &amp; Longitude.</li>
-          <li>Salin angka pertama ke kolom Latitude, angka kedua ke kolom Longitude di form ini.</li>
-        </ol>
-      </div>`;
-    return;
-  }
-  if (!navigator.geolocation){ alert('Geolocation tidak didukung browser ini.'); return; }
-  if (!window.isSecureContext){ alert('Halaman ini harus diakses lewat HTTPS agar lokasi bisa diambil.'); return; }
-  info.innerHTML = '<div class="msg info">📡 Mencari lokasi presisi tinggi, mohon tunggu...</div>';
-  navigator.geolocation.getCurrentPosition(pos=>{
-    const { latitude, longitude, accuracy } = pos.coords;
-    document.getElementById('latSekolah').value = latitude;
-    document.getElementById('lngSekolah').value = longitude;
-    const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-    const buruk = accuracy > 100;
-    info.innerHTML = `
-      <div class="msg ${buruk ? 'error' : 'ok'}">
-        Lokasi terambil dengan akurasi ±${Math.round(accuracy)}m.
-        ${buruk ? ' Akurasi ini kurang bagus dan berisiko salah lokasi — sebaiknya pastikan GPS aktif, coba di luar ruangan/dekat jendela, lalu klik lagi tombol di atas sebelum menyimpan.' : ' Silakan cek dulu titiknya di peta sebelum menyimpan.'}
-      </div>
-      <a href="${mapsUrl}" target="_blank" rel="noopener">🗺️ Cek titik ini di Google Maps</a>`;
-  }, err=>{
-    info.innerHTML = `<div class="msg error">Gagal mengambil lokasi: ${err.message}</div>`;
-  }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
-}
-async function simpanLokasi(e){
-  e.preventDefault();
-  const lat = Number(document.getElementById('latSekolah').value);
-  const lng = Number(document.getElementById('lngSekolah').value);
-  const radius = Number(document.getElementById('radiusSekolah').value);
-  const akurasiMax = Number(document.getElementById('akurasiSekolah').value);
-  const timeoutDetik = Number(document.getElementById('timeoutSekolah').value);
-  await db.ref('schools/'+currentUser.uid+'/settings/lokasi').set({ lat, lng, radius, akurasiMax, timeoutDetik });
-  alert('Titik koordinat tersimpan.');
-  return false;
-}
-
 /* --- Rekap Kehadiran --- */
 let rekapDataCache = [];
 async function muatRekap(){
@@ -795,8 +697,7 @@ async function muatRekap(){
       if (sampai && tgl > sampai) return;
       rekapDataCache.push({
         tanggal:tgl, nama:namaGuru, masuk:rec.jamMasuk||'-', pulang:rec.jamPulang||'-', status:rec.status||'-',
-        selfieMasuk: rec.selfieMasuk || null, selfiePulang: rec.selfiePulang || null,
-        akurasiMasuk: rec.akurasiMasuk, akurasiPulang: rec.akurasiPulang
+        selfieMasuk: rec.selfieMasuk || null, selfiePulang: rec.selfiePulang || null
       });
     });
   });
@@ -812,13 +713,12 @@ async function muatRekap(){
 function lihatSelfieBesar(i, jenis){
   const r = rekapDataCache[i];
   const src = jenis==='masuk' ? r.selfieMasuk : r.selfiePulang;
-  const akurasi = jenis==='masuk' ? r.akurasiMasuk : r.akurasiPulang;
   if (!src) return;
   const w = window.open('', '_blank');
   w.document.write(`<title>Selfie ${r.nama} - ${r.tanggal}</title>
     <body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#fff">
     <img src="${src}" style="max-width:90vw;max-height:80vh;border-radius:10px">
-    <p>${r.nama} — ${r.tanggal} (${jenis}) ${akurasi ? '— akurasi GPS ±'+Math.round(akurasi)+'m' : ''}</p>
+    <p>${r.nama} — ${r.tanggal} (${jenis})</p>
     </body>`);
 }
 function downloadRekapCSV(){
@@ -853,14 +753,6 @@ function initAbsenGuru(schoolUid, guruId, token){
     }
     document.getElementById('absenGuruInfo').innerHTML = `<p>Halo, <b>${guru.nama}</b></p><p style="font-size:13px;color:#64748b">${guru.mapel||''}</p>`;
   });
-}
-
-function haversine(lat1, lng1, lat2, lng2){
-  const R = 6371000;
-  const toRad = d=> d*Math.PI/180;
-  const dLat = toRad(lat2-lat1), dLng = toRad(lng2-lng1);
-  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
 let camStream = null;
@@ -903,101 +795,32 @@ async function ambilFotoDanAbsen(){
 }
 
 async function prosesAbsen(selfieDataUrl){
-  if (isAppDesktop){
-    showMsg('absenGuruMsg', 'Absen guru harus dilakukan lewat HP (scan QR dengan kamera HP), bukan lewat aplikasi desktop, karena butuh GPS &amp; kamera asli dari HP.', 'error');
-    tampilkanTombolUlangi();
-    return;
-  }
-  if (!navigator.geolocation){ showMsg('absenGuruMsg','Geolocation tidak didukung.','error'); return; }
-  if (!window.isSecureContext){
-    showMsg('absenGuruMsg','Halaman ini harus diakses lewat HTTPS agar lokasi bisa diambil.','error');
-    tampilkanTombolUlangi();
-    return;
-  }
-  showMsg('absenGuruMsg', 'Memvalidasi lokasi...', 'info');
+  showMsg('absenGuruMsg', 'Menyimpan absen...', 'info');
+  const { schoolUid, guruId } = absenCtx;
 
-  const { schoolUid } = absenCtx;
-  const [locSnap, jamSnap] = await Promise.all([
-    db.ref('schools/'+schoolUid+'/settings/lokasi').once('value'),
-    db.ref('schools/'+schoolUid+'/settings/jam').once('value')
-  ]);
-  const lokasi = locSnap.val(); const jam = jamSnap.val();
-  if (!lokasi){ showMsg('absenGuruMsg','Sekolah belum mengatur titik koordinat.','error'); tampilkanTombolUlangi(); return; }
+  const jamSnap = await db.ref('schools/'+schoolUid+'/settings/jam').once('value');
+  const jam = jamSnap.val();
 
-  // Timeout diatur oleh admin sekolah (menyesuaikan kondisi jaringan/GPS di lokasi), default 20 detik
-  const timeoutMs = Math.max(10, Number(lokasi.timeoutDetik) || 20) * 1000;
+  const now = new Date();
+  const tgl = now.toISOString().slice(0,10);
+  const jamNow = now.toTimeString().slice(0,5);
+  const recRef = db.ref('schools/'+schoolUid+'/absensi/'+guruId+'/'+tgl);
+  const existing = (await recRef.once('value')).val();
 
-  function pesanError(err){
-    if (err.code === err.TIMEOUT) return 'Waktu pencarian lokasi habis. Pastikan GPS/Lokasi di perangkat aktif, lalu coba lagi di area terbuka.';
-    if (err.code === err.PERMISSION_DENIED) return 'Izin lokasi ditolak. Aktifkan izin lokasi untuk halaman ini di pengaturan browser.';
-    if (err.code === err.POSITION_UNAVAILABLE) return 'Lokasi tidak tersedia saat ini. Coba lagi.';
-    return err.message;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    pos => lanjutkanAbsen(pos, selfieDataUrl, lokasi, jam),
-    errPertama => {
-      // Percobaan pertama (akurasi tinggi) gagal/timeout, coba ulang dengan mode lebih longgar
-      showMsg('absenGuruMsg', 'Mencoba ulang mengambil lokasi...', 'info');
-      navigator.geolocation.getCurrentPosition(
-        pos => lanjutkanAbsen(pos, selfieDataUrl, lokasi, jam),
-        errKedua => {
-          showMsg('absenGuruMsg', 'Gagal mengambil lokasi: '+pesanError(errKedua), 'error');
-          tampilkanTombolUlangi();
-        },
-        { enableHighAccuracy:false, timeout:timeoutMs, maximumAge:30000 }
-      );
-    },
-    { enableHighAccuracy:true, timeout:timeoutMs, maximumAge:0 }
-  );
-}
-
-async function lanjutkanAbsen(pos, selfieDataUrl, lokasi, jam){
-  {
-    const { schoolUid, guruId } = absenCtx;
-
-    const akurasi = pos.coords.accuracy;
-    const akurasiMax = lokasi.akurasiMax || 50;
-    if (akurasi > akurasiMax){
-      showMsg('absenGuruMsg', `Akurasi GPS Anda terlalu rendah (±${Math.round(akurasi)}m, maksimal ±${akurasiMax}m). Coba lagi di area terbuka dengan sinyal GPS lebih baik.`, 'error');
-      tampilkanTombolUlangi();
-      return;
+  if (!existing || !existing.jamMasuk){
+    let status = 'Hadir';
+    if (jam && jam.masuk){
+      const [hM,mM] = jam.masuk.split(':').map(Number);
+      const batas = new Date(now); batas.setHours(hM, mM + (jam.toleransi||0), 0, 0);
+      if (now > batas) status = 'Terlambat';
     }
-
-    const jarak = haversine(pos.coords.latitude, pos.coords.longitude, lokasi.lat, lokasi.lng);
-    if (jarak > lokasi.radius){
-      showMsg('absenGuruMsg', `Anda berada ${Math.round(jarak)}m dari sekolah (maks ${lokasi.radius}m). Absen ditolak — pastikan Anda absen langsung di lokasi sekolah.`, 'error');
-      tampilkanTombolUlangi();
-      return;
-    }
-
-    const now = new Date();
-    const tgl = now.toISOString().slice(0,10);
-    const jamNow = now.toTimeString().slice(0,5);
-    const recRef = db.ref('schools/'+schoolUid+'/absensi/'+guruId+'/'+tgl);
-    const existing = (await recRef.once('value')).val();
-
-    if (!existing || !existing.jamMasuk){
-      let status = 'Hadir';
-      if (jam && jam.masuk){
-        const [hM,mM] = jam.masuk.split(':').map(Number);
-        const batas = new Date(now); batas.setHours(hM, mM + (jam.toleransi||0), 0, 0);
-        if (now > batas) status = 'Terlambat';
-      }
-      await recRef.update({
-        jamMasuk: jamNow, status, selfieMasuk: selfieDataUrl,
-        latMasuk: pos.coords.latitude, lngMasuk: pos.coords.longitude, akurasiMasuk: akurasi
-      });
-      showMsg('absenGuruMsg', `Absen masuk berhasil pukul ${jamNow} (${status}).`, 'ok');
-    } else if (!existing.jamPulang){
-      await recRef.update({
-        jamPulang: jamNow, selfiePulang: selfieDataUrl,
-        latPulang: pos.coords.latitude, lngPulang: pos.coords.longitude, akurasiPulang: akurasi
-      });
-      showMsg('absenGuruMsg', `Absen pulang berhasil pukul ${jamNow}.`, 'ok');
-    } else {
-      showMsg('absenGuruMsg', 'Anda sudah melakukan absen masuk dan pulang hari ini.', 'info');
-    }
+    await recRef.update({ jamMasuk: jamNow, status, selfieMasuk: selfieDataUrl });
+    showMsg('absenGuruMsg', `Absen masuk berhasil pukul ${jamNow} (${status}).`, 'ok');
+  } else if (!existing.jamPulang){
+    await recRef.update({ jamPulang: jamNow, selfiePulang: selfieDataUrl });
+    showMsg('absenGuruMsg', `Absen pulang berhasil pukul ${jamNow}.`, 'ok');
+  } else {
+    showMsg('absenGuruMsg', 'Anda sudah melakukan absen masuk dan pulang hari ini.', 'info');
   }
 }
 
