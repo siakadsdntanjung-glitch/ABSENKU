@@ -798,29 +798,34 @@ async function prosesAbsen(selfieDataUrl){
   showMsg('absenGuruMsg', 'Menyimpan absen...', 'info');
   const { schoolUid, guruId } = absenCtx;
 
-  const jamSnap = await db.ref('schools/'+schoolUid+'/settings/jam').once('value');
-  const jam = jamSnap.val();
+  try {
+    const jamSnap = await db.ref('schools/'+schoolUid+'/settings/jam').once('value');
+    const jam = jamSnap.val();
 
-  const now = new Date();
-  const tgl = now.toISOString().slice(0,10);
-  const jamNow = now.toTimeString().slice(0,5);
-  const recRef = db.ref('schools/'+schoolUid+'/absensi/'+guruId+'/'+tgl);
-  const existing = (await recRef.once('value')).val();
+    const now = new Date();
+    const tgl = now.toISOString().slice(0,10);
+    const jamNow = now.toTimeString().slice(0,5);
+    const recRef = db.ref('schools/'+schoolUid+'/absensi/'+guruId+'/'+tgl);
+    const existing = (await recRef.once('value')).val();
 
-  if (!existing || !existing.jamMasuk){
-    let status = 'Hadir';
-    if (jam && jam.masuk){
-      const [hM,mM] = jam.masuk.split(':').map(Number);
-      const batas = new Date(now); batas.setHours(hM, mM + (jam.toleransi||0), 0, 0);
-      if (now > batas) status = 'Terlambat';
+    if (!existing || !existing.jamMasuk){
+      let status = 'Hadir';
+      if (jam && jam.masuk){
+        const [hM,mM] = jam.masuk.split(':').map(Number);
+        const batas = new Date(now); batas.setHours(hM, mM + (jam.toleransi||0), 0, 0);
+        if (now > batas) status = 'Terlambat';
+      }
+      await recRef.update({ jamMasuk: jamNow, status, selfieMasuk: selfieDataUrl });
+      showMsg('absenGuruMsg', `Absen masuk berhasil pukul ${jamNow} (${status}).`, 'ok');
+    } else if (!existing.jamPulang){
+      await recRef.update({ jamPulang: jamNow, selfiePulang: selfieDataUrl });
+      showMsg('absenGuruMsg', `Absen pulang berhasil pukul ${jamNow}.`, 'ok');
+    } else {
+      showMsg('absenGuruMsg', 'Anda sudah melakukan absen masuk dan pulang hari ini.', 'info');
     }
-    await recRef.update({ jamMasuk: jamNow, status, selfieMasuk: selfieDataUrl });
-    showMsg('absenGuruMsg', `Absen masuk berhasil pukul ${jamNow} (${status}).`, 'ok');
-  } else if (!existing.jamPulang){
-    await recRef.update({ jamPulang: jamNow, selfiePulang: selfieDataUrl });
-    showMsg('absenGuruMsg', `Absen pulang berhasil pukul ${jamNow}.`, 'ok');
-  } else {
-    showMsg('absenGuruMsg', 'Anda sudah melakukan absen masuk dan pulang hari ini.', 'info');
+  } catch (err) {
+    showMsg('absenGuruMsg', 'Gagal menyimpan absen: '+err.message+' (kemungkinan rules database belum mengizinkan baca data absensi).', 'error');
+    tampilkanTombolUlangi();
   }
 }
 
