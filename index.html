@@ -40,6 +40,7 @@ button{cursor:pointer;font-family:inherit;}
 .btn{display:block;width:100%;padding:11px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-weight:600;font-size:14px;}
 .btn:hover{background:var(--primary-dark);}
 .btn-outline{background:transparent;border:1px solid var(--primary);color:var(--primary);}
+.btn-outline:hover{background:rgba(37,99,235,.08);}
 .btn-danger{background:var(--red);}
 .btn-yellow{background:var(--yellow);}
 .btn-green{background:var(--green);}
@@ -923,10 +924,38 @@ function tampilkanTombolUlangi(){
 /* ================= SCAN QR ABSEN (guru, tanpa login) ================= */
 let scanStream = null, scanAktif = false;
 
+function muatSkrip(src){
+  return new Promise(res=>{
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = () => res(true);
+    el.onerror = () => { el.remove(); res(false); };
+    document.head.appendChild(el);
+  });
+}
+// Muat pemindai QR; jika CDN pertama gagal, coba CDN cadangan
+async function muatJsQR(){
+  if (typeof jsQR !== 'undefined') return true;
+  const sumber = [
+    'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
+    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
+    'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'
+  ];
+  for (const u of sumber){
+    if (await muatSkrip(u) && typeof jsQR !== 'undefined') return true;
+  }
+  return false;
+}
+
 async function bukaScan(){
   if (typeof jsQR === 'undefined'){
-    showMsg('authMsg', 'Pemindai QR belum termuat. Periksa internet lalu muat ulang halaman.', 'error');
-    return;
+    showMsg('authMsg', 'Memuat pemindai QR...', 'info');
+    const ok = await muatJsQR();
+    if (!ok){
+      showMsg('authMsg', 'Pemindai QR belum termuat. Periksa internet lalu tekan tombol Scan QR Absen lagi.', 'error');
+      return;
+    }
+    document.getElementById('authMsg').innerHTML = '';
   }
   document.getElementById('scanMsg').innerText = 'Arahkan kamera ke QR absen Anda';
   document.getElementById('modalScan').classList.remove('hidden');
