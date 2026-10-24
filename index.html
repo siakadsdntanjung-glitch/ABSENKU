@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ABSENSIKU - Sistem Absensi Guru</title>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -84,11 +84,11 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase;}
   .sidebar{position:fixed;left:0;right:0;bottom:0;width:100%;flex-direction:row;align-items:center;z-index:50;border-top:1px solid #1e293b;padding-bottom:env(safe-area-inset-bottom,0px);}
   .sidebar .brand{display:none;}
   .sidebar nav{display:flex;flex:1;padding:4px;gap:2px;overflow-x:auto;}
-  .sidebar nav button{flex:1;min-width:62px;text-align:center;padding:8px 4px;font-size:11px;margin:0;}
+  .sidebar nav button{flex:1;min-width:68px;text-align:center;padding:8px 4px;font-size:10.5px;margin:0;}
   .sidebar nav button span.txt{display:block;white-space:normal;line-height:1.25;}
   .sidebar .logout{padding:4px 6px;border-top:none;}
   .sidebar .logout .btn{padding:9px 10px;font-size:12px;}
-  .main{padding:14px 14px 90px;}
+  .main{padding:calc(14px + env(safe-area-inset-top,0px)) 14px calc(90px + env(safe-area-inset-bottom,0px));}
   .btn-sm{padding:9px 12px;font-size:13px;}
 }
 .qrbox{text-align:center;padding:14px;border:1px dashed var(--border);border-radius:10px;}
