@@ -10,7 +10,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 
 <style>
 :root{
@@ -40,7 +39,6 @@ button{cursor:pointer;font-family:inherit;}
 .btn{display:block;width:100%;padding:11px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-weight:600;font-size:14px;}
 .btn:hover{background:var(--primary-dark);}
 .btn-outline{background:transparent;border:1px solid var(--primary);color:var(--primary);}
-.btn-outline:hover{background:rgba(37,99,235,.08);}
 .btn-danger{background:var(--red);}
 .btn-yellow{background:var(--yellow);}
 .btn-green{background:var(--green);}
@@ -103,12 +101,6 @@ canvas.chart{max-height:260px;}
 .jam-live{font-size:34px;font-weight:700;color:var(--primary);margin:10px 0;}
 .modal-selfie{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;padding:16px;text-align:center;}
 .modal-selfie img{max-width:92vw;max-height:75vh;border-radius:10px;}
-
-/* ===== Pemindai QR Absen (guru) ===== */
-.modal-scan{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:110;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;padding:16px;text-align:center;}
-.scan-frame{position:relative;width:100%;max-width:360px;aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#000;border:3px solid #60a5fa;}
-.scan-frame video{width:100%;height:100%;object-fit:cover;}
-.scan-msg{margin:14px 0;font-size:14px;min-height:20px;}
 </style>
 </head>
 <body>
@@ -142,11 +134,6 @@ canvas.chart{max-height:260px;}
       <div class="field"><label>Kata Sandi</label><input type="password" id="dPass" required minlength="6"></div>
       <button class="btn" type="submit" id="daftarBtnTxt">Daftar (Menunggu Verifikasi)</button>
     </form>
-
-    <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:16px;text-align:center">
-      <p style="margin:0 0 10px;font-size:13px;color:var(--muted)">Anda guru? Absen tanpa login:</p>
-      <button type="button" class="btn btn-outline" onclick="bukaScan()">📷 Scan QR Absen</button>
-    </div>
   </div>
 </div>
 
@@ -273,7 +260,7 @@ canvas.chart{max-height:260px;}
         <button class="btn" style="width:auto;padding:9px 18px;margin-left:8px" onclick="downloadRekapCSV()">⬇ Download CSV</button>
         <div style="overflow-x:auto;margin-top:16px">
         <table>
-          <thead><tr><th>Tanggal</th><th>Nama Guru</th><th>Jam Masuk</th><th>Selfie Masuk</th><th>Jam Pulang</th><th>Selfie Pulang</th><th>Status</th></tr></thead>
+          <thead><tr><th>Tanggal</th><th>Nama Guru</th><th>Jam Masuk</th><th>Selfie Masuk</th><th>Lokasi Masuk</th><th>Jam Pulang</th><th>Selfie Pulang</th><th>Lokasi Pulang</th><th>Status</th></tr></thead>
           <tbody id="tblRekap"></tbody>
         </table>
         </div>
@@ -294,7 +281,7 @@ canvas.chart{max-height:260px;}
     <canvas id="camCanvas" class="hidden"></canvas>
     <img id="camHasil" class="hidden" style="width:100%;border-radius:10px;margin:10px 0;" />
 
-    <button class="btn" id="btnMulaiAbsen" onclick="mulaiAbsen()">🤳 Mulai Absen (Ambil Selfie)</button>
+    <button class="btn" id="btnMulaiAbsen" onclick="mulaiAbsen()">🤳 Mulai Absen (Selfie + Lokasi)</button>
     <button class="btn hidden" id="btnAmbilFoto" onclick="ambilFotoDanAbsen()">📸 Ambil Foto & Kirim Absen</button>
   </div>
 </div>
@@ -304,15 +291,6 @@ canvas.chart{max-height:260px;}
   <img id="modalSelfieImg" alt="Selfie">
   <p id="modalSelfieCap"></p>
   <button class="btn btn-outline" style="width:auto;padding:9px 22px;color:#fff;border-color:#fff" onclick="tutupSelfie()">Tutup</button>
-</div>
-
-<!-- ============ MODAL SCAN QR ABSEN ============ -->
-<div id="modalScan" class="modal-scan hidden">
-  <h3 style="margin:0 0 12px">Scan QR Absen</h3>
-  <div class="scan-frame"><video id="scanVideo" playsinline muted></video></div>
-  <canvas id="scanCanvas" class="hidden"></canvas>
-  <div class="scan-msg" id="scanMsg"></div>
-  <button class="btn btn-outline" style="width:auto;padding:9px 22px;color:#fff;border-color:#fff" onclick="tutupScan()">Tutup</button>
 </div>
 
 <script>
@@ -338,8 +316,8 @@ function tglLokal(d){
 }
 
 /* Alamat halaman absen yang dimasukkan ke QR. Di dalam aplikasi Android (WebView) dipakai alamat hosting tetap.
-   GANTI URL_HOSTING sesuai alamat hosting index.html ini (GitHub Pages). */
-const URL_HOSTING = 'https://siakadsdntanjung-glitch.github.io/ABSENKU/';
+   GANTI URL_HOSTING sesuai alamat hosting index.html ini (mis. Firebase Hosting). */
+const URL_HOSTING = 'https://absensi-cc9a7.web.app/';
 const APP_URL = (location.protocol === 'https:' || location.protocol === 'http:')
   ? (location.origin + location.pathname) : URL_HOSTING;
 
@@ -753,16 +731,21 @@ async function muatRekap(){
       rekapDataCache.push({
         gid, tanggal:tgl, nama:namaGuru, masuk:rec.jamMasuk||'-', pulang:rec.jamPulang||'-', status:rec.status||'-',
         selfieMasuk: rec.selfieMasuk || null, selfiePulang: rec.selfiePulang || null,   /* data lama (selfie tersimpan di dalam absensi) */
-        adaMasuk: !!(rec.adaSelfieMasuk || rec.selfieMasuk), adaPulang: !!(rec.adaSelfiePulang || rec.selfiePulang)
+        adaMasuk: !!(rec.adaSelfieMasuk || rec.selfieMasuk), adaPulang: !!(rec.adaSelfiePulang || rec.selfiePulang),
+        lokasiMasuk: rec.lokasiMasuk || null, lokasiPulang: rec.lokasiPulang || null
       });
     });
   });
   rekapDataCache.sort((a,b)=> a.tanggal.localeCompare(b.tanggal));
   const tombol = (i, ada, jenis) => ada ? `<button class="btn btn-outline btn-sm" onclick="lihatSelfieBesar(${i},'${jenis}')">📷 Lihat</button>` : '-';
+  const lokasiCell = l => {
+    const url = linkPeta(l);
+    return url ? `<a href="${url}" target="_blank" rel="noopener">📍 ${l.lat}, ${l.lng}</a><div style="font-size:11px;color:#64748b">±${l.akurasi} m</div>` : '-';
+  };
   document.getElementById('tblRekap').innerHTML = rekapDataCache.map((r,i)=>
-    `<tr><td>${r.tanggal}</td><td>${r.nama}</td><td>${r.masuk}</td><td>${tombol(i, r.adaMasuk, 'masuk')}</td>
-      <td>${r.pulang}</td><td>${tombol(i, r.adaPulang, 'pulang')}</td><td>${r.status}</td></tr>`
-  ).join('') || '<tr><td colspan="7">Tidak ada data pada rentang ini.</td></tr>';
+    `<tr><td>${r.tanggal}</td><td>${r.nama}</td><td>${r.masuk}</td><td>${tombol(i, r.adaMasuk, 'masuk')}</td><td>${lokasiCell(r.lokasiMasuk)}</td>
+      <td>${r.pulang}</td><td>${tombol(i, r.adaPulang, 'pulang')}</td><td>${lokasiCell(r.lokasiPulang)}</td><td>${r.status}</td></tr>`
+  ).join('') || '<tr><td colspan="9">Tidak ada data pada rentang ini.</td></tr>';
 }
 
 /* Selfie diambil satu per satu saat dibutuhkan (tidak ikut terunduh bersama data absensi) */
@@ -792,9 +775,10 @@ function tutupSelfie(){
 
 function downloadRekapCSV(){
   if (!rekapDataCache.length){ alert('Muat data rekap terlebih dahulu.'); return; }
-  let csv = 'Tanggal,Nama Guru,Jam Masuk,Selfie Masuk,Jam Pulang,Selfie Pulang,Status\n';
+  let csv = 'Tanggal,Nama Guru,Jam Masuk,Selfie Masuk,Lokasi Masuk,Jam Pulang,Selfie Pulang,Lokasi Pulang,Status\n';
   rekapDataCache.forEach(r=>{
-    csv += `${r.tanggal},"${String(r.nama).replace(/"/g,'""')}",${r.masuk},${r.adaMasuk?'Ada':'Tidak'},${r.pulang},${r.adaPulang?'Ada':'Tidak'},${r.status}\n`;
+    const lk = l => l ? `"${l.lat},${l.lng}"` : '';
+    csv += `${r.tanggal},"${String(r.nama).replace(/"/g,'""')}",${r.masuk},${r.adaMasuk?'Ada':'Tidak'},${lk(r.lokasiMasuk)},${r.pulang},${r.adaPulang?'Ada':'Tidak'},${lk(r.lokasiPulang)},${r.status}\n`;
   });
   const namaFile = 'rekap-kehadiran-guru.csv';
   /* Di aplikasi Android: simpan lewat jembatan native (unduhan blob tidak jalan di WebView) */
@@ -833,10 +817,67 @@ function initAbsenGuru(schoolUid, guruId, token){
 }
 
 let camStream = null;
+let absenLokasi = null;   // {lat, lng, akurasi, waktu} hasil GPS saat absen
+
+/* Pemeriksaan versi aplikasi Android. Aplikasi lama (tanpa fungsi versionCode) otomatis dianggap perlu update. */
+const APP_VERSI_MINIMAL = 2;   // samakan dengan versionCode di build.gradle; naikkan jika ada pembaruan native wajib
+const LINK_UPDATE = 'https://github.com/siakadsdntanjung-glitch/ABSENKU/releases/latest';   // GANTI: halaman unduh APK terbaru
+function appPerluUpdate(){
+  if (!window.AndroidBridge) return false;                          // dibuka di browser biasa
+  if (typeof AndroidBridge.versionCode !== 'function') return true; // aplikasi lama
+  return AndroidBridge.versionCode() < APP_VERSI_MINIMAL;
+}
+
+/* Ambil titik koordinat (GPS) perangkat */
+function ambilLokasi(){
+  return new Promise((resolve, reject)=>{
+    if (!navigator.geolocation){ reject(new Error('Perangkat tidak mendukung lokasi (GPS).')); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({
+        lat: Number(pos.coords.latitude.toFixed(6)),
+        lng: Number(pos.coords.longitude.toFixed(6)),
+        akurasi: Math.round(pos.coords.accuracy),   // meter
+        waktu: pos.timestamp
+      }),
+      err => {
+        let pesan = 'Lokasi tidak dapat diambil.';
+        if (err.code === 1) pesan = 'Izin lokasi ditolak. Aktifkan izin lokasi untuk aplikasi ini di Pengaturan.';
+        else if (err.code === 2) pesan = 'Lokasi tidak tersedia. Pastikan GPS/Lokasi pada HP sudah aktif.';
+        else if (err.code === 3) pesan = 'Waktu pengambilan lokasi habis. Coba lagi di tempat yang lebih terbuka.';
+        reject(new Error(pesan));
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  });
+}
+
+function linkPeta(l){
+  return (l && typeof l.lat === 'number') ? 'https://www.google.com/maps?q=' + l.lat + ',' + l.lng : null;
+}
 
 async function mulaiAbsen(){
   document.getElementById('absenGuruMsg').innerHTML = '';
   document.getElementById('camHasil').classList.add('hidden');
+
+  if (appPerluUpdate()){
+    document.getElementById('absenGuruMsg').innerHTML =
+      '<div class="msg error">Aplikasi perlu diperbarui agar bisa mencatat lokasi. ' +
+      '<a href="'+LINK_UPDATE+'">Unduh versi terbaru</a></div>';
+    return;
+  }
+
+  // 1) Ambil titik koordinat dulu (wajib)
+  showMsg('absenGuruMsg', 'Mengambil lokasi...', 'info');
+  try{
+    absenLokasi = await ambilLokasi();
+  }catch(err){
+    absenLokasi = null;
+    showMsg('absenGuruMsg', err.message, 'error');
+    return;
+  }
+  document.getElementById('absenGuruMsg').innerHTML = '';
+
+  // 2) Buka kamera
   try{
     camStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
   }catch(err){
@@ -897,11 +938,11 @@ async function prosesAbsen(selfieDataUrl){
         if (now > batas) status = 'Terlambat';
       }
       await selfieRef.child('masuk').set(selfieDataUrl);
-      await recRef.update({ jamMasuk: jamNow, status, adaSelfieMasuk: true });
+      await recRef.update({ jamMasuk: jamNow, status, adaSelfieMasuk: true, lokasiMasuk: absenLokasi });
       showMsg('absenGuruMsg', `Absen masuk berhasil pukul ${jamNow} (${status}).`, 'ok');
     } else if (!existing.jamPulang){
       await selfieRef.child('pulang').set(selfieDataUrl);
-      await recRef.update({ jamPulang: jamNow, adaSelfiePulang: true });
+      await recRef.update({ jamPulang: jamNow, adaSelfiePulang: true, lokasiPulang: absenLokasi });
       showMsg('absenGuruMsg', `Absen pulang berhasil pukul ${jamNow}.`, 'ok');
     } else {
       showMsg('absenGuruMsg', 'Anda sudah melakukan absen masuk dan pulang hari ini.', 'info');
@@ -921,99 +962,8 @@ function tampilkanTombolUlangi(){
   document.getElementById('btnMulaiAbsen').innerText = '🔁 Ulangi Absen';
 }
 
-/* ================= SCAN QR ABSEN (guru, tanpa login) ================= */
-let scanStream = null, scanAktif = false;
-
-function muatSkrip(src){
-  return new Promise(res=>{
-    const el = document.createElement('script');
-    el.src = src;
-    el.onload = () => res(true);
-    el.onerror = () => { el.remove(); res(false); };
-    document.head.appendChild(el);
-  });
-}
-// Muat pemindai QR; jika CDN pertama gagal, coba CDN cadangan
-async function muatJsQR(){
-  if (typeof jsQR !== 'undefined') return true;
-  const sumber = [
-    'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
-    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
-    'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'
-  ];
-  for (const u of sumber){
-    if (await muatSkrip(u) && typeof jsQR !== 'undefined') return true;
-  }
-  return false;
-}
-
-async function bukaScan(){
-  if (typeof jsQR === 'undefined'){
-    showMsg('authMsg', 'Memuat pemindai QR...', 'info');
-    const ok = await muatJsQR();
-    if (!ok){
-      showMsg('authMsg', 'Pemindai QR belum termuat. Periksa internet lalu tekan tombol Scan QR Absen lagi.', 'error');
-      return;
-    }
-    document.getElementById('authMsg').innerHTML = '';
-  }
-  document.getElementById('scanMsg').innerText = 'Arahkan kamera ke QR absen Anda';
-  document.getElementById('modalScan').classList.remove('hidden');
-  try{
-    scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false });
-  }catch(err){
-    document.getElementById('scanMsg').innerText = 'Tidak bisa mengakses kamera: ' + err.message;
-    return;
-  }
-  const video = document.getElementById('scanVideo');
-  video.srcObject = scanStream;
-  try{ await video.play(); }catch(e){}
-  scanAktif = true;
-  requestAnimationFrame(loopScan);
-}
-
-function loopScan(){
-  if (!scanAktif) return;
-  const video = document.getElementById('scanVideo');
-  if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth){
-    const canvas = document.getElementById('scanCanvas');
-    const w = 480, h = Math.round(video.videoHeight * w / video.videoWidth);
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently:true });
-    ctx.drawImage(video, 0, 0, w, h);
-    const img = ctx.getImageData(0, 0, w, h);
-    const kode = jsQR(img.data, w, h, { inversionAttempts:'dontInvert' });
-    if (kode && kode.data && prosesHasilScan(kode.data)) return;
-  }
-  setTimeout(() => requestAnimationFrame(loopScan), 120);
-}
-
-/* Hanya menerima QR absen milik aplikasi ini (alamat sendiri + parameter s, g, t). Mengembalikan true jika berhasil. */
-function prosesHasilScan(teks){
-  let u;
-  try{ u = new URL(teks); }catch(e){ document.getElementById('scanMsg').innerText = 'Ini bukan QR absen ABSENSIKU.'; return false; }
-  const hostSah = [location.host, new URL(URL_HOSTING).host];
-  const s = u.searchParams.get('s'), g = u.searchParams.get('g'), t = u.searchParams.get('t');
-  if (u.protocol !== 'https:' || !hostSah.includes(u.host) || !s || !g || !t){
-    document.getElementById('scanMsg').innerText = 'Ini bukan QR absen ABSENSIKU.';
-    return false;
-  }
-  tutupScan();
-  location.href = APP_URL + '?s=' + encodeURIComponent(s) + '&g=' + encodeURIComponent(g) + '&t=' + encodeURIComponent(t);
-  return true;
-}
-
-function tutupScan(){
-  scanAktif = false;
-  if (scanStream){ scanStream.getTracks().forEach(tr => tr.stop()); scanStream = null; }
-  const video = document.getElementById('scanVideo');
-  video.srcObject = null;
-  document.getElementById('modalScan').classList.add('hidden');
-}
-
 /* Dipanggil aplikasi Android saat tombol Back ditekan. Mengembalikan true jika Back sudah ditangani halaman. */
 window.handleBack = function(){
-  if (!document.getElementById('modalScan').classList.contains('hidden')){ tutupScan(); return true; }
   if (!document.getElementById('modalSelfie').classList.contains('hidden')){ tutupSelfie(); return true; }
   if (!document.getElementById('utama-detail').classList.contains('hidden')){ tutupDetailSekolah(); return true; }
   if (!document.getElementById('screen-utama').classList.contains('hidden')){
