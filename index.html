@@ -207,6 +207,7 @@ canvas.chart{max-height:260px;}
       <button class="nav-sekolah active" data-tab="dashboard" onclick="showSekolahTab('dashboard')"><span class="txt">📊 Dashboard</span></button>
       <button class="nav-sekolah" data-tab="guru" onclick="showSekolahTab('guru')"><span class="txt">👤 Data Guru</span></button>
       <button class="nav-sekolah" data-tab="jam" onclick="showSekolahTab('jam')"><span class="txt">⏰ Jam Masuk/Pulang</span></button>
+      <button class="nav-sekolah" data-tab="lokasi" onclick="showSekolahTab('lokasi')"><span class="txt">📍 Lokasi Sekolah</span></button>
       <button class="nav-sekolah" data-tab="rekap" onclick="showSekolahTab('rekap')"><span class="txt">📥 Rekap Kehadiran</span></button>
     </nav>
     <div class="logout"><button class="btn btn-outline" onclick="logout()">Keluar</button></div>
@@ -246,6 +247,25 @@ canvas.chart{max-height:260px;}
           <div class="field"><label>Toleransi Terlambat (menit)</label><input type="number" id="toleransi" value="15" required></div>
           <button class="btn" type="submit">Simpan Pengaturan Jam</button>
         </form>
+      </div>
+    </div>
+
+    <div id="sekolah-lokasi" class="hidden">
+      <div class="topbar"><h2>Seting Lokasi Sekolah</h2></div>
+      <div class="panel" style="max-width:480px">
+        <p style="font-size:13px;color:#64748b;margin-top:0">Tentukan titik koordinat sekolah dan radius yang diizinkan. Guru hanya bisa absen jika posisinya berada di dalam radius ini.</p>
+        <form onsubmit="return simpanLokasi(event)">
+          <button class="btn btn-outline" type="button" style="margin-bottom:14px" onclick="pakaiLokasiSaya()">📍 Gunakan Lokasi Saya Sekarang</button>
+          <div class="grid2">
+            <div class="field"><label>Latitude</label><input type="number" id="lokLat" step="any" min="-90" max="90" placeholder="-7.2575" required></div>
+            <div class="field"><label>Longitude</label><input type="number" id="lokLng" step="any" min="-180" max="180" placeholder="112.7521" required></div>
+          </div>
+          <div class="field"><label>Radius Diizinkan (meter)</label><input type="number" id="lokRadius" min="10" max="5000" value="100" required></div>
+          <div class="field"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="lokAktif" checked style="width:auto"> Aktifkan pembatasan lokasi (guru di luar radius tidak bisa absen)</label></div>
+          <div id="lokInfo" style="font-size:13px;color:#64748b;margin-bottom:10px"></div>
+          <button class="btn" type="submit">Simpan Lokasi Sekolah</button>
+        </form>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:0">Tips: buka Pengaturan ini saat Anda berada di sekolah lalu tekan "Gunakan Lokasi Saya Sekarang". Atau salin koordinat dari Google Maps (tekan lama pada titik peta).</p>
       </div>
     </div>
 
@@ -599,11 +619,12 @@ async function hapusAkun(uid){
 /* ================= ADMIN SEKOLAH ================= */
 function showSekolahTab(tab){
   document.querySelectorAll('.nav-sekolah').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-  ['dashboard','guru','jam','rekap'].forEach(t=>{
+  ['dashboard','guru','jam','lokasi','rekap'].forEach(t=>{
     document.getElementById('sekolah-'+t).classList.toggle('hidden', t!==tab);
   });
   if (tab==='guru') loadGuru();
   if (tab==='jam') loadJam();
+  if (tab==='lokasi') loadLokasi();
 }
 
 async function loadSekolahDashboard(){
@@ -709,6 +730,50 @@ async function simpanJam(e){
   const toleransi = Number(document.getElementById('toleransi').value);
   await db.ref('schools/'+currentUser.uid+'/settings/jam').set({ masuk, pulang, toleransi });
   alert('Pengaturan jam tersimpan.');
+  return false;
+}
+
+/* --- Lokasi Sekolah --- */
+async function loadLokasi(){
+  try{
+    const snap = await db.ref('schools/'+currentUser.uid+'/settings/lokasi').once('value');
+    const l = snap.val();
+    if (l){
+      document.getElementById('lokLat').value = l.lat;
+      document.getElementById('lokLng').value = l.lng;
+      document.getElementById('lokRadius').value = l.radius;
+      document.getElementById('lokAktif').checked = !!l.aktif;
+      document.getElementById('lokInfo').innerHTML = '<a href="https://www.google.com/maps?q='+l.lat+','+l.lng+'" target="_blank" rel="noopener">🗺️ Lihat titik sekolah di Google Maps</a>';
+    } else {
+      document.getElementById('lokInfo').innerText = 'Lokasi sekolah belum diatur. Selama belum diatur, guru bisa absen dari mana saja (koordinat tetap dicatat).';
+    }
+  }catch(err){
+    document.getElementById('lokInfo').innerText = 'Gagal memuat: ' + err.message;
+  }
+}
+async function pakaiLokasiSaya(){
+  const info = document.getElementById('lokInfo');
+  info.innerText = 'Mengambil lokasi...';
+  try{
+    const l = await ambilLokasi();
+    document.getElementById('lokLat').value = l.lat;
+    document.getElementById('lokLng').value = l.lng;
+    info.innerText = 'Lokasi terambil (akurasi ±' + l.akurasi + ' m). Periksa lalu tekan Simpan.';
+  }catch(err){ info.innerText = err.message; }
+}
+async function simpanLokasi(e){
+  e.preventDefault();
+  const lat = Number(document.getElementById('lokLat').value);
+  const lng = Number(document.getElementById('lokLng').value);
+  const radius = Number(document.getElementById('lokRadius').value);
+  const aktif = document.getElementById('lokAktif').checked;
+  if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180){ alert('Koordinat tidak valid.'); return false; }
+  if (!(radius >= 10)){ alert('Radius minimal 10 meter.'); return false; }
+  try{
+    await db.ref('schools/'+currentUser.uid+'/settings/lokasi').set({ lat, lng, radius, aktif });
+    alert('Lokasi sekolah tersimpan.');
+    loadLokasi();
+  }catch(err){ alert('Gagal menyimpan: ' + err.message); }
   return false;
 }
 
@@ -851,6 +916,14 @@ function ambilLokasi(){
   });
 }
 
+/* Jarak dua titik (meter), rumus haversine */
+function jarakMeter(lat1, lng1, lat2, lng2){
+  const R = 6371000, rad = x => x * Math.PI / 180;
+  const dLat = rad(lat2 - lat1), dLng = rad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 function linkPeta(l){
   return (l && typeof l.lat === 'number') ? 'https://www.google.com/maps?q=' + l.lat + ',' + l.lng : null;
 }
@@ -876,6 +949,26 @@ async function mulaiAbsen(){
     return;
   }
   document.getElementById('absenGuruMsg').innerHTML = '';
+
+  // 1b) Periksa apakah berada di dalam radius sekolah (jika admin sudah mengaturnya)
+  try{
+    const ls = await db.ref('schools/'+absenCtx.schoolUid+'/settings/lokasi').once('value');
+    const cfg = ls.val();
+    if (cfg && cfg.aktif){
+      const jarak = jarakMeter(absenLokasi.lat, absenLokasi.lng, cfg.lat, cfg.lng);
+      // akurasi GPS diberi kelonggaran agar guru yang berada di batas radius tidak ditolak keliru
+      if (jarak - (absenLokasi.akurasi || 0) > cfg.radius){
+        absenLokasi = null;
+        showMsg('absenGuruMsg', 'Anda berada sekitar ' + Math.round(jarak) + ' m dari sekolah. Absen hanya bisa dilakukan dalam radius ' + cfg.radius + ' m.', 'error');
+        tampilkanTombolUlangi();
+        return;
+      }
+    }
+  }catch(err){
+    absenLokasi = null;
+    showMsg('absenGuruMsg', 'Gagal memeriksa lokasi sekolah: ' + (err && err.message ? err.message : err), 'error');
+    return;
+  }
 
   // 2) Buka kamera
   try{
